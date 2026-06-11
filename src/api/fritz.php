@@ -137,9 +137,36 @@ switch ($action) {
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         break;
 
+    case 'live':
+        $xml = aha($host, $sid, 'getdevicelistinfos');
+        $dom = simplexml_load_string($xml);
+        $meters = [];
+        foreach ($dom->device as $dev) {
+            if (!isset($dev->powermeter)) continue;
+            $meters[] = [
+                'ain'    => trim((string)$dev['identifier']),
+                'name'   => (string)$dev->name,
+                'power'  => (int)$dev->powermeter->power,
+                'energy' => (int)$dev->powermeter->energy,
+            ];
+        }
+        echo json_encode(['meters' => $meters, 'ts' => time()], JSON_UNESCAPED_UNICODE);
+        break;
+
     case 'config':
         $entries = parse_ain_map($ainMap);
-        echo json_encode(['ains' => $entries], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        echo json_encode([
+            'ains' => $entries,
+            'prices' => [
+                'bezug'       => (float)env('PRICE_BEZUG', '31.72'),
+                'einspeisung' => (float)env('PRICE_EINSPEISUNG', '8.00'),
+            ],
+            'battery' => [
+                'capacity' => (float)env('BATTERY_CAPACITY_KWH', '1.92'),
+                'price'    => (float)env('BATTERY_PRICE_EUR', '399'),
+                'name'     => env('BATTERY_NAME', 'Speicher'),
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         break;
 
     default:
