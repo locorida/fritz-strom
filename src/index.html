@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FRITZ!Box Energiemonitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --border: #2a2d3a;
+            --text: #e4e4e7;
+            --muted: #9ca3af;
+            --accent: #3b82f6;
+            --green: #22c55e;
+            --red: #ef4444;
+            --orange: #f59e0b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 1.2rem;
+        }
+        h1 .fritz { color: var(--accent); }
+
+        .live-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 0.8rem;
+            margin-bottom: 1.2rem;
+        }
+        .live-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.9rem 1.2rem;
+        }
+        .live-card .label { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.25rem; }
+        .live-card .value { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .live-card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+        .c-blue   { color: var(--accent); }
+        .c-red    { color: var(--red); }
+        .c-green  { color: var(--green); }
+        .c-orange { color: var(--orange); }
+
+        .controls {
+            display: flex;
+            gap: 0.6rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .btn-group {
+            display: inline-flex;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .btn-group button {
+            background: var(--surface);
+            color: var(--text);
+            border: none;
+            padding: 0.45rem 0.9rem;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .btn-group button:not(:last-child) { border-right: 1px solid var(--border); }
+        .btn-group button:hover { background: var(--border); }
+        .btn-group button.active { background: var(--accent); color: #fff; }
+
+        .chart-wrap {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.2rem;
+            position: relative;
+        }
+        #chart { width: 100%; height: 420px; }
+
+        .status {
+            margin-top: 0.8rem;
+            font-size: 0.78rem;
+            color: var(--muted);
+        }
+        .status.error { color: var(--red); }
+
+        .loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15,17,23,0.7);
+            border-radius: 12px;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+        .loading.hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<h1><span class="fritz">FRITZ!Box</span> Energiemonitor</h1>
+
+<div class="live-bar" id="liveBar"></div>
+
+<div class="controls">
+    <div class="btn-group" id="periodGroup">
+        <button data-value="day">Live (60 Min)</button>
+        <button data-value="week">Woche</button>
+        <button data-value="month" class="active">Monat</button>
+        <button data-value="year">Jahr</button>
+    </div>
+    <div class="btn-group" id="unitGroup">
+        <button data-value="Wh">Wh</button>
+        <button data-value="kWh" class="active">kWh</button>
+    </div>
+    <div class="btn-group" id="styleGroup">
+        <button data-value="grouped" class="active">Gruppiert</button>
+        <button data-value="stacked">Gestapelt</button>
+    </div>
+</div>
+
+<div class="chart-wrap">
+    <canvas id="chart"></canvas>
+    <div class="loading hidden" id="loading">Daten werden geladen…</div>
+</div>
+
+<div class="status" id="status"></div>
+
+<script>
+const COLORS = {
+    bezug:      { bg: 'rgba(239,68,68,0.7)',   border: '#ef4444' },
+    einspeise:  { bg: 'rgba(34,197,94,0.7)',    border: '#22c55e' },
+    extra:      { bg: 'rgba(59,130,246,0.7)',   border: '#3b82f6' },
+};
+
+let chart = null;
+let currentPeriod = 'month';
+let currentUnit = 'kWh';
+let currentStyle = 'grouped';
+let seriesConfigs = [];
+let allStats = {};
+
+function fmt(v, digits = 1) {
+    return v.toLocaleString('de-DE', { maximumFractionDigits: digits });
+}
+
+function setStatus(msg, isError = false) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = isError ? 'status error' : 'status';
+}
+
+function showLoading(v) {
+    document.getElementById('loading').classList.toggle('hidden', !v);
+}
+
+function setupBtnGroup(id, callback) {
+    document.getElementById(id).querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            btn.parentElement.querySelector('.active')?.classList.remove('active');
+            btn.classList.add('active');
+            callback(btn.dataset.value);
+        });
+    });
+}
+
+function periodConfig(period) {
+    switch (period) {
+        case 'day':   return { type: 'power', grid: 10,      maxPoints: 360, timeUnit: 'hour',  barPerc: 0.9 };
+        case 'week':  return { type: 'energy', grid: 86400,   maxPoints: 7,   timeUnit: 'day',   barPerc: 0.8 };
+        case 'month': return { type: 'energy', grid: 86400,   maxPoints: 31,  timeUnit: 'day',   barPerc: 0.8 };
+        case 'year':  return { type: 'energy', grid: 2678400, maxPoints: 12,  timeUnit: 'month', barPerc: 0.8 };
+    }
+}
+
+function buildTimestamps(datatime, grid, count, period) {
+    const baseMs = datatime * 1000;
+    const labels = [];
+    for (let i = 0; i < count; i++) {
+        if (period === 'year') {
+            const base = new Date(baseMs);
+            labels.push(new Date(base.getFullYear(), base.getMonth() - i, 1));
+        } else if (period === 'month' || period === 'week') {
+            const d = new Date(baseMs);
+            d.setDate(d.getDate() - i);
+            d.setHours(0, 0, 0, 0);
+            labels.push(d);
+        } else {
+            labels.push(new Date(baseMs - i * grid * 1000));
+        }
+    }
+    return labels;
+}
+
+function renderChart() {
+    const cfg = periodConfig(currentPeriod);
+    const stacked = currentStyle === 'stacked';
+    const isPower = cfg.type === 'power';
+    const divisor = (!isPower && currentUnit === 'kWh') ? 1000 : 1;
+    const yLabel = isPower ? 'W' : currentUnit;
+
+    const datasets = [];
+    let labels = null;
+
+    if (isPower) {
+        const stats = allStats[seriesConfigs[0].ain];
+        if (stats && stats.power) {
+            const bucket = stats.power.find(s => s.grid === cfg.grid);
+            if (bucket) {
+                const count = Math.min(bucket.values.length, cfg.maxPoints);
+                labels = buildTimestamps(bucket.datatime, cfg.grid, count, currentPeriod);
+                datasets.push({
+                    label: 'Netzleistung',
+                    data: bucket.values.slice(0, count),
+                    backgroundColor: 'rgba(59,130,246,0.15)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.3,
+                    fill: true,
+                });
+            }
+        }
+    } else {
+        seriesConfigs.forEach((seriesCfg) => {
+            const stats = allStats[seriesCfg.ain];
+            if (!stats) return;
+
+            const bucket = stats.energy.find(s => s.grid === cfg.grid);
+            if (!bucket) return;
+
+            const count = Math.min(bucket.values.length, cfg.maxPoints);
+            if (!labels) {
+                labels = buildTimestamps(bucket.datatime, cfg.grid, count, currentPeriod);
+            }
+
+            const values = bucket.values.slice(0, count).map(v => v / divisor);
+            const isEinspeise = seriesCfg.label.toLowerCase().includes('einspe');
+            const color = isEinspeise ? COLORS.einspeise : COLORS.bezug;
+
+            datasets.push({
+                label: seriesCfg.label,
+                data: values,
+                backgroundColor: color.bg,
+                borderColor: color.border,
+                borderWidth: 1,
+                borderRadius: 3,
+                maxBarThickness: 40,
+            });
+        });
+    }
+
+    if (!labels || labels.length === 0) {
+        setStatus('Keine Daten für diesen Zeitraum verfügbar.', true);
+        return;
+    }
+
+    labels.reverse();
+    datasets.forEach(ds => ds.data.reverse());
+
+    if (chart) chart.destroy();
+
+    chart = new Chart(document.getElementById('chart'), {
+        type: isPower ? 'line' : 'bar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: {
+                    type: 'time',
+                    stacked: !isPower && stacked,
+                    time: { unit: cfg.timeUnit },
+                    grid: { color: 'rgba(255,255,255,0.06)' },
+                    ticks: { color: '#9ca3af', maxRotation: 0 },
+                },
+                y: {
+                    stacked: !isPower && stacked,
+                    beginAtZero: true,
+                    title: { display: true, text: yLabel, color: '#9ca3af' },
+                    grid: { color: 'rgba(255,255,255,0.06)' },
+                    ticks: { color: '#9ca3af' },
+                },
+            },
+            plugins: {
+                legend: { labels: { color: '#e4e4e7', usePointStyle: true, padding: 16 } },
+                tooltip: {
+                    backgroundColor: '#1a1d27',
+                    borderColor: '#2a2d3a',
+                    borderWidth: 1,
+                    titleColor: '#e4e4e7',
+                    bodyColor: '#e4e4e7',
+                    callbacks: {
+                        label: ctx => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)} ${yLabel}`,
+                    },
+                },
+            },
+        },
+    });
+
+    setStatus(`Letzte Aktualisierung: ${new Date().toLocaleTimeString('de-DE')}`);
+}
+
+function renderLiveCards() {
+    const bar = document.getElementById('liveBar');
+    bar.innerHTML = '';
+
+    let bezugStats = null, einspStats = null;
+    let livePowerW = null;
+
+    seriesConfigs.forEach(cfg => {
+        const stats = allStats[cfg.ain];
+        if (!stats) return;
+        const isEinspeise = cfg.label.toLowerCase().includes('einspe');
+        if (isEinspeise) einspStats = stats; else bezugStats = stats;
+
+        if (livePowerW === null && stats.power && stats.power.length > 0) {
+            const finest = stats.power.reduce((a, b) => a.grid < b.grid ? a : b);
+            if (finest.values.length > 0) livePowerW = finest.values[0];
+        }
+    });
+
+    if (livePowerW !== null) {
+        bar.innerHTML += `
+            <div class="live-card">
+                <div class="label">Aktuelle Netzleistung</div>
+                <div class="value c-blue">${fmt(livePowerW)} W</div>
+                <div class="sub">Beide Kanäle melden denselben Wert</div>
+            </div>`;
+    }
+
+    const bezugDaily  = bezugStats?.energy?.find(e => e.grid === 86400);
+    const einspDaily  = einspStats?.energy?.find(e => e.grid === 86400);
+
+    if (bezugDaily && bezugDaily.values.length > 0) {
+        const todayBezug = bezugDaily.values[0];
+        bar.innerHTML += `
+            <div class="live-card">
+                <div class="label">Bezug heute</div>
+                <div class="value c-red">${fmt(todayBezug / 1000, 2)} kWh</div>
+            </div>`;
+    }
+
+    if (einspDaily && einspDaily.values.length > 0) {
+        const todayEinsp = einspDaily.values[0];
+        bar.innerHTML += `
+            <div class="live-card">
+                <div class="label">Einspeisung heute</div>
+                <div class="value c-green">${fmt(todayEinsp / 1000, 2)} kWh</div>
+            </div>`;
+    }
+
+    if (bezugDaily && einspDaily && bezugDaily.values.length > 0 && einspDaily.values.length > 0) {
+        const netto = bezugDaily.values[0] - einspDaily.values[0];
+        const label = netto >= 0 ? 'Netto-Bezug heute' : 'Netto-Einspeisung heute';
+        const cls   = netto >= 0 ? 'c-orange' : 'c-green';
+        bar.innerHTML += `
+            <div class="live-card">
+                <div class="label">${label}</div>
+                <div class="value ${cls}">${fmt(Math.abs(netto) / 1000, 2)} kWh</div>
+            </div>`;
+    }
+}
+
+async function fetchData() {
+    showLoading(true);
+    try {
+        const cfgRes = await fetch('/api/fritz.php?action=config');
+        const cfgData = await cfgRes.json();
+        if (cfgData.error) throw new Error(cfgData.error);
+        seriesConfigs = cfgData.ains;
+
+        if (seriesConfigs.length === 0) {
+            setStatus('Keine AINs konfiguriert. Bitte FRITZ_AINS in .env setzen.', true);
+            showLoading(false);
+            return;
+        }
+
+        for (const cfg of seriesConfigs) {
+            const res = await fetch(`/api/fritz.php?action=stats&ain=${encodeURIComponent(cfg.ain)}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            allStats[cfg.ain] = data;
+        }
+
+        renderLiveCards();
+        renderChart();
+    } catch (e) {
+        setStatus('Fehler: ' + e.message, true);
+    }
+    showLoading(false);
+}
+
+setupBtnGroup('periodGroup', v => { currentPeriod = v; renderChart(); });
+setupBtnGroup('unitGroup',   v => { currentUnit = v;   renderChart(); });
+setupBtnGroup('styleGroup',  v => { currentStyle = v;  renderChart(); });
+
+fetchData();
+setInterval(fetchData, 60000);
+</script>
+</body>
+</html>

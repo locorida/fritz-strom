@@ -1,0 +1,11 @@
+services:
+  web:
+    image: php:8.3-apache
+    ports:
+      - "8080:80"
+    volumes:
+      - ./src:/var/www/html
+    env_file:
+      - .env
+    extra_hosts:
+      - "fritz.box:192.168.178.1"
