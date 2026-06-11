@@ -2,7 +2,7 @@
 
 Lokale Web-App zur Visualisierung der Energiedaten eines **FRITZ!Smart Energy 250** über das AHA-HTTP-Interface der FRITZ!Box.
 
-![Screenshot](https://img.shields.io/badge/stack-PHP_8.3_|_Chart.js_4_|_Docker-blue)
+![Screenshot](https://img.shields.io/badge/stack-PHP_8.4_|_Chart.js_4_|_Docker-blue)
 
 ## Features
 
