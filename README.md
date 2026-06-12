@@ -6,13 +6,17 @@ Lokale Web-App zur Visualisierung der Energiedaten eines **FRITZ!Smart Energy 25
 
 ## Features
 
-- **Bezug & Einspeisung** als getrennte Datenreihen im Balkendiagramm
-- **Live-Ansicht** der Netzleistung (letzte 60 Minuten)
-- Zeiträume: Live / Woche / Monat / Jahr
+- **Bezug & Einspeisung** als getrennte Datenreihen (rot/grün) mit automatischer Richtungserkennung
+- **Tagesverlauf** aus lokaler Aufzeichnung — beliebige Zeiträume filterbar (z.B. 10:00–12:00)
+- Zeiträume: Live (60 Min) / Heute / Woche / Monat / Jahr / Total
+- Zeitraum-Filter mit Detail-Panel (Durchschnitt, Maximum, Kosten, Netto-Bilanz)
 - Einheit umschaltbar: Wh / kWh
 - Darstellung: gruppiert oder gestapelt
-- Live-Kennzahlen: aktuelle Netzleistung, Tages-Bezug, Tages-Einspeisung, Netto-Bilanz
-- Automatische Aktualisierung jede Minute
+- Live-Kennzahlen: Netzleistung, Richtungsanzeige, Tages-Bezug/-Einspeisung, Netto-Bilanz, Kosten
+- Speicher-Simulation: Amortisationsrechnung für Batteriespeicher
+- Automatische Aktualisierung alle 30 Sekunden
+- Eigenständiger Collector-Service — loggt unabhängig vom Browser
+- Filter bleibt über Seitenrefresh erhalten (sessionStorage)
 - Dark Theme
 
 ## Voraussetzungen
@@ -50,6 +54,28 @@ Lokale Web-App zur Visualisierung der Energiedaten eines **FRITZ!Smart Energy 25
 
 5. Öffnen: **http://localhost:8080**
 
+Beide Container (`web` + `collector`) starten automatisch mit Docker (`restart: unless-stopped`).
+
+## Architektur
+
+### Zwei Services
+
+| Service | Image | Aufgabe |
+|---------|-------|---------|
+| `web` | `php:8.4-apache` | Dashboard (Frontend + API) auf Port 8080 |
+| `collector` | `php:8.4-cli` | Fragt alle 30s die Fritz!Box ab und loggt in `./data/` |
+
+### Richtungserkennung
+
+Die Fritz!Box liefert nur **eine** Momentanleistung (W). Bezug vs. Einspeisung wird über die **Energiezähler-Deltas** (Wh) der beiden Kanäle (`-1` = Bezug, `-2` = Einspeisung) ermittelt. Da die Zähler nur ganzzahlige Wh auflösen, nutzt die API ein **5-Minuten-Gleitfenster** — bei niedrigen Leistungen (< 120 W) braucht es einige Minuten bis die Richtung erkannt wird.
+
+### Datenaufzeichnung
+
+- Der Collector schreibt pro Tag eine JSONL-Datei nach `./data/YYYY-MM-DD.jsonl`
+- Jede Zeile: `{"ts": unix_ts, "meters": [{"ain": "...", "power": mW, "energy": Wh}, ...]}`
+- Die History-API (`?action=history&date=YYYY-MM-DD`) berechnet Richtung und Deltas on-the-fly
+- **Wenn Docker nicht läuft, werden keine Daten geloggt** — die Fritz!Box bietet keinen rückwirkenden Export
+
 ## AINs ermitteln
 
 Falls du deine AINs nicht kennst, starte die App und rufe die Geräteliste ab:
@@ -65,6 +91,16 @@ Der FRITZ!Smart Energy 250 erzeugt typischerweise drei Einträge:
 | `-1` | Bezug (Verbrauch vom Netz, A+) |
 | `-2` | Einspeisung (ins Netz, A−) |
 
+## API-Endpunkte
+
+| Endpunkt | Beschreibung |
+|----------|-------------|
+| `?action=config` | AIN-Konfiguration, Preise, Speicher-Parameter |
+| `?action=live` | Aktuelle Zählerstände aller Powermeter |
+| `?action=stats&ain=...` | Historische Statistiken von der Fritz!Box (60 Min / Tage / Monate) |
+| `?action=history&date=YYYY-MM-DD` | Lokale Aufzeichnung mit Richtungserkennung |
+| `?action=devicelist` | Alle Smart-Home-Geräte (zur AIN-Ermittlung) |
+
 ## Hinweise
 
 - Aus Docker-Containern wird `fritz.box` nicht aufgelöst — daher immer die IP verwenden.
@@ -77,8 +113,12 @@ Der FRITZ!Smart Energy 250 erzeugt typischerweise drei Einträge:
 ├── docker-compose.yml
 ├── .env.example
 ├── .gitignore
+├── collector/
+│   └── collect.php         # Standalone-Collector (30s-Intervall)
+├── data/                   # Lokale Messdaten (nicht im Repo)
+│   └── YYYY-MM-DD.jsonl
 └── src/
     ├── index.html          # Frontend (Chart.js)
     └── api/
-        └── fritz.php       # Backend (AHA-HTTP-Interface)
+        └── fritz.php       # Backend (AHA-HTTP-Interface + History-API)
 ```
