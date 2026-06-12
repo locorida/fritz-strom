@@ -111,6 +111,37 @@
             border-radius: 12px; padding: 1.2rem; position: relative;
         }
         #chart { width: 100%; height: 420px; }
+        .range-row {
+            display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;
+        }
+        .range-row label { font-size: 0.82rem; color: var(--muted); }
+        .range-row input {
+            background: var(--surface); color: var(--text); border: 1px solid var(--border);
+            border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 0.82rem;
+            font-family: inherit;
+        }
+        .range-row input:focus { outline: none; border-color: var(--accent); }
+        .range-row .range-btn {
+            background: var(--surface); color: var(--text); border: 1px solid var(--border);
+            border-radius: 6px; padding: 0.4rem 0.8rem; font-size: 0.82rem;
+            cursor: pointer; transition: background 0.15s;
+        }
+        .range-row .range-btn:hover { background: var(--border); }
+        .range-row .range-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .range-detail {
+            background: var(--surface); border: 1px solid var(--accent);
+            border-radius: 10px; padding: 0.8rem 1.2rem; margin-bottom: 1rem;
+            display: none;
+        }
+        .range-detail.visible { display: block; }
+        .range-detail h3 {
+            font-size: 0.8rem; color: var(--accent); font-weight: 600;
+            margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;
+        }
+        .range-detail .range-kpis {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem;
+        }
+        .range-detail .range-kpis .kpi { background: rgba(255,255,255,0.03); }
         .status { margin-top: 0.8rem; font-size: 0.78rem; color: var(--muted); }
         .status.error { color: var(--red); }
         .loading {
@@ -164,9 +195,11 @@
 <div class="controls">
     <div class="btn-group" id="periodGroup">
         <button data-value="day">Live (60 Min)</button>
+        <button data-value="today" class="active">Heute</button>
         <button data-value="week">Woche</button>
-        <button data-value="month" class="active">Monat</button>
+        <button data-value="month">Monat</button>
         <button data-value="year">Jahr</button>
+        <button data-value="total">Total</button>
     </div>
     <div class="btn-group" id="unitGroup">
         <button data-value="Wh">Wh</button>
@@ -176,6 +209,19 @@
         <button data-value="grouped" class="active">Gruppiert</button>
         <button data-value="stacked">Gestapelt</button>
     </div>
+    <div class="range-row" id="rangeRow">
+        <label>Von</label>
+        <input type="time" id="rangeFrom">
+        <label>Bis</label>
+        <input type="time" id="rangeTo">
+        <button class="range-btn" id="rangeApply">Anwenden</button>
+        <button class="range-btn" id="rangeReset" style="display:none">Zurücksetzen</button>
+    </div>
+</div>
+
+<div class="range-detail" id="rangeDetail">
+    <h3><span>&#128269;</span> <span id="rangeTitle">Auswahl</span></h3>
+    <div class="range-kpis" id="rangeKpis"></div>
 </div>
 
 <div class="chart-wrap">
@@ -191,11 +237,13 @@ const COLORS = {
     einspeise: { bg: 'rgba(34,197,94,0.7)',  border: '#22c55e' },
 };
 
-let chart = null, currentPeriod = 'month', currentUnit = 'kWh', currentStyle = 'grouped';
+let chart = null, currentPeriod = 'today', currentUnit = 'kWh', currentStyle = 'grouped';
 let seriesConfigs = [], allStats = {};
 let prices = { bezug: 31.72, einspeisung: 8.0 };
 let battery = { capacity: 1.92, price: 399, name: 'Speicher' };
 let prevLive = null, currentDirection = null;
+let activeRange = null;
+let historyData = null, historyAvailableDays = [];
 
 function fmt(v, d = 1) { return v.toLocaleString('de-DE', { maximumFractionDigits: d }); }
 function setStatus(msg, err = false) { const el = document.getElementById('status'); el.textContent = msg; el.className = err ? 'status error' : 'status'; }
@@ -204,10 +252,12 @@ function setupBtnGroup(id, cb) { document.getElementById(id).querySelectorAll('b
 
 function periodConfig(p) {
     switch (p) {
-        case 'day':   return { type:'power', grid:10,      max:360, unit:'hour' };
+        case 'day':   return { type:'history', unit:'minute', maxAge: 3600 };
+        case 'today': return { type:'history', unit:'hour', maxAge: null };
         case 'week':  return { type:'energy', grid:86400,   max:7,   unit:'day' };
         case 'month': return { type:'energy', grid:86400,   max:31,  unit:'day' };
         case 'year':  return { type:'energy', grid:2678400, max:12,  unit:'month' };
+        case 'total': return { type:'energy_total', unit:'month' };
     }
 }
 
@@ -290,12 +340,54 @@ function renderChart() {
     const cfg = periodConfig(currentPeriod);
     const stacked = currentStyle === 'stacked';
     const isPower = cfg.type === 'power';
-    const div = (!isPower && currentUnit === 'kWh') ? 1000 : 1;
-    const yL = isPower ? 'W' : currentUnit;
-    const datasets = [];
+    const isHistory = cfg.type === 'history';
+    const isTotal = cfg.type === 'energy_total';
+    const div = (!isPower && !isHistory && currentUnit === 'kWh') ? 1000 : 1;
+    const yL = (isPower || isHistory) ? 'W' : currentUnit;
+    let datasets = [];
     let labels = null;
+    let chartType = 'bar';
 
-    if (isPower) {
+    if (isHistory) {
+        if (historyData?.readings?.length) {
+            labels = [];
+            const bezugData = [], einspData = [], unknownData = [];
+            const now = Math.floor(Date.now() / 1000);
+            const cutoff = cfg.maxAge ? now - cfg.maxAge : 0;
+
+            historyData.readings.forEach(r => {
+                if (r.ts < cutoff) return;
+                labels.push(new Date(r.ts * 1000));
+                const w = r.power;
+                if (r.direction === 'export') {
+                    bezugData.push(0); einspData.push(w); unknownData.push(0);
+                } else if (r.direction === 'import') {
+                    bezugData.push(w); einspData.push(0); unknownData.push(0);
+                } else {
+                    bezugData.push(0); einspData.push(0); unknownData.push(w);
+                }
+            });
+            datasets.push({
+                label: 'Bezug', data: bezugData,
+                backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444',
+                borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true,
+            });
+            datasets.push({
+                label: 'Einspeisung', data: einspData,
+                backgroundColor: 'rgba(34,197,94,0.15)', borderColor: '#22c55e',
+                borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true,
+            });
+            const hasUnknown = unknownData.some(v => v > 0);
+            if (hasUnknown) {
+                datasets.push({
+                    label: 'Netzleistung', data: unknownData,
+                    backgroundColor: 'rgba(59,130,246,0.1)', borderColor: '#3b82f6',
+                    borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true,
+                });
+            }
+            chartType = 'line';
+        }
+    } else if (isPower) {
         const s = allStats[seriesConfigs[0]?.ain];
         if (s?.power) {
             const b = s.power.find(x => x.grid === cfg.grid);
@@ -312,6 +404,26 @@ function renderChart() {
                 datasets.push({ label: dirLabel, data: b.values.slice(0,n),
                     backgroundColor: dirColor.bg, borderColor: dirColor.border,
                     borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true });
+                chartType = 'line';
+            }
+        }
+    } else if (isTotal) {
+        const bM = allStats[seriesConfigs.find(c => !c.label.toLowerCase().includes('einspe'))?.ain];
+        const eM = allStats[seriesConfigs.find(c => c.label.toLowerCase().includes('einspe'))?.ain];
+        if (bM?.energy && eM?.energy) {
+            const bData = bM.energy.find(x => x.grid === 2678400);
+            const eData = eM.energy.find(x => x.grid === 2678400);
+            if (bData && eData) {
+                const n = Math.max(bData.values.length, eData.values.length);
+                labels = buildTimestamps(bData.datatime, 2678400, n, 'year');
+                const bVals = bData.values.slice(0, n).map(v => v / (currentUnit === 'kWh' ? 1000 : 1));
+                const eVals = eData.values.slice(0, n).map(v => v / (currentUnit === 'kWh' ? 1000 : 1));
+                datasets.push({ label: 'Bezug', data: bVals,
+                    backgroundColor: COLORS.bezug.bg, borderColor: COLORS.bezug.border,
+                    borderWidth: 1, borderRadius: 3, maxBarThickness: 40 });
+                datasets.push({ label: 'Einspeisung', data: eVals,
+                    backgroundColor: COLORS.einspeise.bg, borderColor: COLORS.einspeise.border,
+                    borderWidth: 1, borderRadius: 3, maxBarThickness: 40 });
             }
         }
     } else {
@@ -328,16 +440,39 @@ function renderChart() {
     }
     if (!labels?.length) { setStatus('Keine Daten.', true); return; }
     labels.reverse(); datasets.forEach(ds => ds.data.reverse());
+
+    const filtered = filterByRange(labels, datasets);
+    if (filtered.empty) {
+        const first = labels[0] instanceof Date ? labels[0] : new Date(labels[0]);
+        const last = labels[labels.length - 1] instanceof Date ? labels[labels.length - 1] : new Date(labels[labels.length - 1]);
+        const fmtTime = d => d.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
+        const fmtDate = d => d.toLocaleDateString('de-DE');
+        const hint = (currentPeriod === 'day' || currentPeriod === 'today')
+            ? `Verfügbar: ${fmtTime(first)} – ${fmtTime(last)}`
+            : `Verfügbar: ${fmtDate(first)} – ${fmtDate(last)}`;
+        setStatus(`Keine Daten im gewählten Zeitraum. ${hint}`, true);
+        renderRangeDetail([], []);
+        if (chart) chart.destroy();
+        chart = null;
+        return;
+    }
+    if (filtered.filtered) {
+        renderRangeDetail(filtered.labels, filtered.datasets);
+        labels = filtered.labels; datasets = filtered.datasets;
+    } else {
+        renderRangeDetail([], []);
+    }
+
     if (chart) chart.destroy();
     chart = new Chart(document.getElementById('chart'), {
-        type: isPower ? 'line' : 'bar', data: { labels, datasets },
+        type: chartType, data: { labels, datasets },
         options: {
             responsive: true, maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             scales: {
-                x: { type: 'time', stacked: !isPower && stacked, time: { unit: cfg.unit },
+                x: { type: 'time', stacked: chartType === 'bar' && stacked, time: { unit: cfg.unit },
                      grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#9ca3af', maxRotation: 0 } },
-                y: { stacked: !isPower && stacked, beginAtZero: true,
+                y: { stacked: chartType === 'bar' && stacked, beginAtZero: true,
                      title: { display: true, text: yL, color: '#9ca3af' },
                      grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#9ca3af' } },
             },
@@ -458,6 +593,211 @@ function renderKPIs() {
     }
 }
 
+function updateRangeInputs() {
+    const fromEl = document.getElementById('rangeFrom');
+    const toEl = document.getElementById('rangeTo');
+    if (currentPeriod === 'day' || currentPeriod === 'today') {
+        fromEl.type = 'time'; toEl.type = 'time';
+        prefillHistoryRange();
+    } else {
+        fromEl.type = 'date'; toEl.type = 'date';
+        prefillEnergyRange();
+    }
+    clearRange();
+}
+
+function prefillLiveRange() {
+    const fromEl = document.getElementById('rangeFrom');
+    const toEl = document.getElementById('rangeTo');
+    const s = allStats[seriesConfigs[0]?.ain];
+    if (!s?.power?.length) { fromEl.value = ''; toEl.value = ''; return; }
+    const b = s.power.find(x => x.grid === 10);
+    if (!b) { fromEl.value = ''; toEl.value = ''; return; }
+    const n = Math.min(b.values.length, 360);
+    const end = new Date(b.datatime * 1000);
+    const start = new Date(end.getTime() - (n - 1) * 10000);
+    const pad = d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    fromEl.value = pad(start);
+    toEl.value = pad(end);
+}
+
+function prefillHistoryRange() {
+    const fromEl = document.getElementById('rangeFrom');
+    const toEl = document.getElementById('rangeTo');
+    if (!historyData?.readings?.length) { fromEl.value = ''; toEl.value = ''; return; }
+    const first = new Date(historyData.readings[1]?.ts * 1000 || historyData.readings[0].ts * 1000);
+    const last = new Date(historyData.readings[historyData.readings.length - 1].ts * 1000);
+    const pad = d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    fromEl.value = pad(first);
+    toEl.value = pad(last);
+}
+
+function prefillEnergyRange() {
+    const fromEl = document.getElementById('rangeFrom');
+    const toEl = document.getElementById('rangeTo');
+    const cfg = periodConfig(currentPeriod);
+    const s = allStats[seriesConfigs[0]?.ain];
+    if (!s?.energy?.length) { fromEl.value = ''; toEl.value = ''; return; }
+    const b = s.energy.find(x => x.grid === cfg.grid);
+    if (!b) { fromEl.value = ''; toEl.value = ''; return; }
+    const n = Math.min(b.values.length, cfg.max);
+    const labels = buildTimestamps(b.datatime, cfg.grid, n, currentPeriod);
+    if (!labels.length) { fromEl.value = ''; toEl.value = ''; return; }
+    const oldest = labels[labels.length - 1];
+    const newest = labels[0];
+    const isoDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    fromEl.value = isoDate(oldest);
+    toEl.value = isoDate(newest);
+}
+
+function clearRange() {
+    activeRange = null;
+    sessionStorage.removeItem('fritz_range');
+    sessionStorage.removeItem('fritz_range_period');
+    document.getElementById('rangeReset').style.display = 'none';
+    document.getElementById('rangeApply').classList.remove('active');
+    document.getElementById('rangeDetail').classList.remove('visible');
+}
+
+function applyRange() {
+    const fromEl = document.getElementById('rangeFrom');
+    const toEl = document.getElementById('rangeTo');
+    if (!fromEl.value || !toEl.value) return;
+
+    if (currentPeriod === 'day' || currentPeriod === 'today') {
+        const [fh, fm] = fromEl.value.split(':').map(Number);
+        const [th, tm] = toEl.value.split(':').map(Number);
+        activeRange = { fromMin: fh * 60 + fm, toMin: th * 60 + tm };
+    } else {
+        activeRange = { fromDate: new Date(fromEl.value + 'T00:00:00'), toDate: new Date(toEl.value + 'T23:59:59') };
+    }
+
+    sessionStorage.setItem('fritz_range', JSON.stringify({ from: fromEl.value, to: toEl.value }));
+    sessionStorage.setItem('fritz_range_period', currentPeriod);
+    document.getElementById('rangeReset').style.display = '';
+    document.getElementById('rangeApply').classList.add('active');
+    renderChart();
+}
+
+function restoreRange() {
+    const saved = sessionStorage.getItem('fritz_range');
+    const savedPeriod = sessionStorage.getItem('fritz_range_period');
+    if (!saved || savedPeriod !== currentPeriod) return false;
+    const { from, to } = JSON.parse(saved);
+    document.getElementById('rangeFrom').value = from;
+    document.getElementById('rangeTo').value = to;
+    applyRange();
+    return true;
+}
+
+function filterByRange(labels, datasets) {
+    if (!activeRange) return { labels, datasets, filtered: false };
+
+    const indices = [];
+    labels.forEach((lbl, i) => {
+        const d = lbl instanceof Date ? lbl : new Date(lbl);
+        if (currentPeriod === 'day' || currentPeriod === 'today') {
+            const min = d.getHours() * 60 + d.getMinutes();
+            if (min >= activeRange.fromMin && min <= activeRange.toMin) indices.push(i);
+        } else {
+            if (d >= activeRange.fromDate && d <= activeRange.toDate) indices.push(i);
+        }
+    });
+
+    if (indices.length === 0) return { labels: [], datasets: [], filtered: true, empty: true };
+
+    return {
+        labels: indices.map(i => labels[i]),
+        datasets: datasets.map(ds => ({ ...ds, data: indices.map(i => ds.data[i]) })),
+        filtered: true,
+    };
+}
+
+function renderRangeDetail(labels, datasets) {
+    const panel = document.getElementById('rangeDetail');
+    const kpiEl = document.getElementById('rangeKpis');
+    const titleEl = document.getElementById('rangeTitle');
+
+    if (!activeRange || !labels.length) { panel.classList.remove('visible'); return; }
+
+    const cfgType = periodConfig(currentPeriod).type;
+    const isPower = cfgType === 'power' || cfgType === 'history';
+    const first = labels[0] instanceof Date ? labels[0] : new Date(labels[0]);
+    const last = labels[labels.length - 1] instanceof Date ? labels[labels.length - 1] : new Date(labels[labels.length - 1]);
+
+    if (currentPeriod === 'day' || currentPeriod === 'today') {
+        titleEl.textContent = `${first.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'})} – ${last.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'})} (${labels.length} Messpunkte)`;
+    } else {
+        titleEl.textContent = `${first.toLocaleDateString('de-DE')} – ${last.toLocaleDateString('de-DE')} (${labels.length} ${currentPeriod === 'year' ? 'Monate' : 'Tage'})`;
+    }
+
+    kpiEl.innerHTML = '';
+    const kpi = (label, val, cls, sub) => {
+        kpiEl.innerHTML += `<div class="kpi"><div class="label">${label}</div><div class="val ${cls}">${val}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+    };
+
+    if (isPower && datasets.length >= 2) {
+        const bezugDs = datasets.find(d => d.label === 'Bezug');
+        const einspDs = datasets.find(d => d.label === 'Einspeisung');
+        if (bezugDs && einspDs) {
+            const intervalS = cfgType === 'history' ? 30 : 10;
+            const durationH = (labels.length * intervalS) / 3600;
+            const bSum = bezugDs.data.reduce((a, b) => a + b, 0);
+            const eSum = einspDs.data.reduce((a, b) => a + b, 0);
+            const bAvg = bSum / labels.length;
+            const eAvg = eSum / labels.length;
+            kpi('Bezug (Ø)', `${fmt(bAvg, 0)} W`, 'c-red', `${fmt(bAvg * durationH, 1)} Wh`);
+            kpi('Einspeisung (Ø)', `${fmt(eAvg, 0)} W`, 'c-green', `${fmt(eAvg * durationH, 1)} Wh`);
+            kpi('Maximum', `${fmt(Math.max(...bezugDs.data), 0)} W Bezug`, 'c-red');
+            kpi('Dauer', `${fmt(durationH * 60, 0)} Min.`, 'c-blue');
+        }
+    } else if (isPower) {
+        const ds = datasets[0];
+        if (!ds) return;
+        const vals = ds.data;
+        const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+        const max = Math.max(...vals);
+        const min = Math.min(...vals);
+        const durationH = (labels.length * 10) / 3600;
+        const energyWh = avg * durationH;
+
+        kpi('Durchschnitt', `${fmt(avg, 0)} W`, 'c-blue');
+        kpi('Maximum', `${fmt(max, 0)} W`, 'c-red');
+        kpi('Minimum', `${fmt(min, 0)} W`, 'c-green');
+        kpi('Geschätzte Energie', `${fmt(energyWh, 1)} Wh`, 'c-orange', `${fmt(durationH * 60, 0)} Min.`);
+    } else {
+        datasets.forEach(ds => {
+            const sum = ds.data.reduce((a, b) => a + b, 0);
+            const isE = ds.label.toLowerCase().includes('einspe');
+            const cls = isE ? 'c-green' : 'c-red';
+            kpi(ds.label, `${fmt(sum, 2)} ${currentUnit}`, cls);
+
+            const priceCt = isE ? prices.einspeisung : prices.bezug;
+            const sumKwh = currentUnit === 'kWh' ? sum : sum / 1000;
+            const cost = (sumKwh * priceCt) / 100;
+            kpi(isE ? 'Erlös' : 'Kosten', `${fmt(cost, 2)} €`, cls, `${fmt(priceCt, 1)} ct/kWh`);
+        });
+
+        if (datasets.length === 2) {
+            const bezugDs = datasets.find(d => !d.label.toLowerCase().includes('einspe'));
+            const einspDs = datasets.find(d => d.label.toLowerCase().includes('einspe'));
+            if (bezugDs && einspDs) {
+                const bSum = bezugDs.data.reduce((a, b) => a + b, 0);
+                const eSum = einspDs.data.reduce((a, b) => a + b, 0);
+                const netto = bSum - eSum;
+                const bKwh = currentUnit === 'kWh' ? bSum : bSum / 1000;
+                const eKwh = currentUnit === 'kWh' ? eSum : eSum / 1000;
+                const nettoCost = (bKwh * prices.bezug - eKwh * prices.einspeisung) / 100;
+                kpi(netto >= 0 ? 'Netto-Bezug' : 'Netto-Einspeisung',
+                    `${fmt(Math.abs(netto), 2)} ${currentUnit}`, netto >= 0 ? 'c-orange' : 'c-green');
+                kpi('Netto-Kosten', `${fmt(nettoCost, 2)} €`, nettoCost >= 0 ? 'c-red' : 'c-green');
+            }
+        }
+    }
+
+    panel.classList.add('visible');
+}
+
 async function fetchData() {
     showLoading(true);
     try {
@@ -480,17 +820,38 @@ async function fetchData() {
         const liveData = await liveRes.json();
         if (!liveData.error) updateSignal(liveData);
 
+        const histRes = await fetch('/api/fritz.php?action=history');
+        const histData = await histRes.json();
+        if (!histData.error) {
+            historyData = histData;
+            historyAvailableDays = histData.available_days || [];
+        }
+
         renderKPIs();
+        if (!activeRange) updateRangeInputs();
         renderChart();
     } catch (e) { setStatus('Fehler: ' + e.message, true); }
     showLoading(false);
 }
 
-setupBtnGroup('periodGroup', v => { currentPeriod = v; renderChart(); });
+setupBtnGroup('periodGroup', v => { currentPeriod = v; updateRangeInputs(); renderChart(); });
 setupBtnGroup('unitGroup',   v => { currentUnit = v;   renderChart(); });
 setupBtnGroup('styleGroup',  v => { currentStyle = v;  renderChart(); });
 
-fetchData();
+document.getElementById('rangeApply').addEventListener('click', applyRange);
+document.getElementById('rangeReset').addEventListener('click', () => { clearRange(); renderChart(); });
+document.getElementById('rangeFrom').addEventListener('keydown', e => { if (e.key === 'Enter') applyRange(); });
+document.getElementById('rangeTo').addEventListener('keydown', e => { if (e.key === 'Enter') applyRange(); });
+
+const savedPeriod = sessionStorage.getItem('fritz_range_period');
+if (savedPeriod && savedPeriod !== currentPeriod) {
+    currentPeriod = savedPeriod;
+    document.querySelector('#periodGroup .active')?.classList.remove('active');
+    document.querySelector(`#periodGroup button[data-value="${savedPeriod}"]`)?.classList.add('active');
+}
+
+updateRangeInputs();
+fetchData().then(() => restoreRange());
 setInterval(fetchData, 30000);
 </script>
 </body>

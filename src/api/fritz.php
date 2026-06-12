@@ -150,7 +150,94 @@ switch ($action) {
                 'energy' => (int)$dev->powermeter->energy,
             ];
         }
-        echo json_encode(['meters' => $meters, 'ts' => time()], JSON_UNESCAPED_UNICODE);
+        $ts = time();
+        $result = ['meters' => $meters, 'ts' => $ts];
+
+        $dataDir = '/var/www/data';
+        $logFile = "$dataDir/" . date('Y-m-d', $ts) . '.jsonl';
+        $logLine = json_encode(['ts' => $ts, 'meters' => $meters], JSON_UNESCAPED_UNICODE);
+        @file_put_contents($logFile, $logLine . "\n", FILE_APPEND | LOCK_EX);
+
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'history':
+        $date = $_GET['date'] ?? date('Y-m-d');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            http_response_code(400);
+            die(json_encode(['error' => 'Ungültiges Datum']));
+        }
+        $dataDir = '/var/www/data';
+        $logFile = "$dataDir/$date.jsonl";
+        $readings = [];
+        if (file_exists($logFile)) {
+            foreach (file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+                $entry = json_decode($line, true);
+                if ($entry) $readings[] = $entry;
+            }
+        }
+
+        $ainEntries = parse_ain_map($ainMap);
+        $bezugAin = null; $einspAin = null;
+        foreach ($ainEntries as $e) {
+            if (stripos($e['label'], 'einspe') !== false) $einspAin = $e['ain'];
+            else $bezugAin = $e['ain'];
+        }
+
+        $processed = [];
+        $windowSeconds = 300;
+        foreach ($readings as $i => $r) {
+            $bezug = null; $einsp = null;
+            foreach ($r['meters'] as $m) {
+                if ($m['ain'] === $bezugAin || str_ends_with($m['ain'], '-1')) $bezug = $m;
+                if ($m['ain'] === $einspAin || str_ends_with($m['ain'], '-2')) $einsp = $m;
+            }
+            $power = $r['meters'][0]['power'] ?? 0;
+
+            $entry = [
+                'ts' => $r['ts'],
+                'power' => $power / 1000,
+                'bezug_energy' => $bezug['energy'] ?? 0,
+                'einsp_energy' => $einsp['energy'] ?? 0,
+            ];
+
+            $windowStart = null;
+            for ($j = $i - 1; $j >= 0; $j--) {
+                if ($r['ts'] - $readings[$j]['ts'] >= $windowSeconds) {
+                    $windowStart = $processed[$j] ?? null;
+                    break;
+                }
+            }
+
+            if ($windowStart) {
+                $bDelta = max(0, $entry['bezug_energy'] - $windowStart['bezug_energy']);
+                $eDelta = max(0, $entry['einsp_energy'] - $windowStart['einsp_energy']);
+                $entry['bezug_delta'] = $bDelta;
+                $entry['einsp_delta'] = $eDelta;
+
+                if ($eDelta > $bDelta) {
+                    $entry['direction'] = 'export';
+                } else if ($bDelta > $eDelta) {
+                    $entry['direction'] = 'import';
+                } else {
+                    $entry['direction'] = 'balanced';
+                }
+            }
+
+            $processed[] = $entry;
+        }
+
+        $availableDays = [];
+        foreach (glob("$dataDir/*.jsonl") as $f) {
+            $availableDays[] = basename($f, '.jsonl');
+        }
+        sort($availableDays);
+
+        echo json_encode([
+            'date' => $date,
+            'readings' => $processed,
+            'available_days' => $availableDays,
+        ], JSON_UNESCAPED_UNICODE);
         break;
 
     case 'config':

@@ -5,7 +5,21 @@ services:
       - "8080:80"
     volumes:
       - ./src:/var/www/html
+      - ./data:/var/www/data
     env_file:
       - .env
+    restart: unless-stopped
     extra_hosts:
       - "fritz.box:192.168.178.1"
+
+  collector:
+    image: php:8.4-cli
+    volumes:
+      - ./collector:/app
+      - ./data:/var/www/data
+    env_file:
+      - .env
+    restart: unless-stopped
+    extra_hosts:
+      - "fritz.box:192.168.178.1"
+    command: php /app/collect.php
