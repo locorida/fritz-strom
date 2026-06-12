@@ -11,8 +11,8 @@
 
 // ===== Konfiguration =====
 $host = 'http://192.168.178.1';   // statt http://fritz.box
-$user     = 'stromer';      // FRITZ!Box-Benutzername (Smart Home / Einstellungen erlaubt)
-$password = '!3z9gz6LzioKwJLt14owiy65#';
+$user     = 'YOUR_USERNAME';      // FRITZ!Box-Benutzername (Smart Home / Einstellungen erlaubt)
+$password = 'YOUR_PASSWORD_HERE';
 $ain      = '16000 0031287';      // deine Aktor-ID (AIN) - exakt so wie angezeigt
 
 // ===== Login: SID holen =====
