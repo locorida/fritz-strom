@@ -196,53 +196,74 @@
             align-items: start;
         }
         .wx-current {
-            display: flex; flex-direction: column; gap: 0.3rem; min-width: 180px;
+            display: flex; flex-direction: column; gap: 0.3rem; min-width: 160px;
         }
         .wx-current .wx-main {
             display: flex; align-items: center; gap: 0.8rem;
         }
-        .wx-current .wx-icon { font-size: 2.6rem; line-height: 1; }
-        .wx-current .wx-temp { font-size: 2rem; font-weight: 700; }
-        .wx-current .wx-desc { font-size: 0.85rem; color: var(--muted); }
+        .wx-current .wx-icon { font-size: 2.4rem; line-height: 1; }
+        .wx-current .wx-temp { font-size: 1.8rem; font-weight: 700; }
+        .wx-current .wx-desc { font-size: 0.82rem; color: var(--muted); }
         .wx-current .wx-details {
-            display: flex; gap: 1rem; font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem;
+            display: flex; gap: 1rem; font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem;
         }
 
-        .wx-forecast { display: flex; flex-direction: column; gap: 0.4rem; }
-        .wx-forecast-title {
-            font-size: 0.75rem; color: var(--muted); font-weight: 600;
-            display: flex; justify-content: space-between; align-items: center;
+        .wx-reco-banner {
+            border-radius: 10px; padding: 0.7rem 1rem; margin-bottom: 0.8rem;
+            display: flex; align-items: center; gap: 0.8rem;
         }
-        .solar-bars {
-            display: flex; align-items: flex-end; gap: 2px; height: 56px;
+        .wx-reco-banner .reco-icon { font-size: 1.6rem; line-height: 1; flex-shrink: 0; }
+        .wx-reco-banner .reco-text { flex: 1; }
+        .wx-reco-banner .reco-title { font-size: 0.95rem; font-weight: 700; }
+        .wx-reco-banner .reco-sub { font-size: 0.78rem; margin-top: 0.15rem; opacity: 0.85; }
+        .wx-reco-banner.reco-good {
+            background: rgba(34,197,94,0.12); border: 1.5px solid var(--green); color: var(--green);
         }
-        .solar-bar-wrap {
-            flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-            min-width: 0;
+        .wx-reco-banner.reco-ok {
+            background: rgba(245,158,11,0.10); border: 1.5px solid var(--orange); color: var(--orange);
         }
-        .solar-bar {
-            width: 100%; border-radius: 2px 2px 0 0;
-            transition: height 0.6s ease, background 0.6s;
-            min-height: 2px;
+        .wx-reco-banner.reco-bad {
+            background: rgba(239,68,68,0.08); border: 1.5px solid var(--red); color: var(--red);
         }
-        .solar-bar-wrap .hour-label {
-            font-size: 0.6rem; color: var(--muted); line-height: 1;
-        }
-        .solar-bar.s-none   { background: rgba(75,85,99,0.3); }
-        .solar-bar.s-low    { background: rgba(156,163,175,0.5); }
-        .solar-bar.s-medium { background: rgba(245,158,11,0.65); }
-        .solar-bar.s-high   { background: rgba(34,197,94,0.75); }
-        .solar-bar.s-peak   { background: #22c55e; }
-        .solar-bar.s-now    { box-shadow: 0 0 0 1.5px var(--accent); }
 
-        .wx-meta {
-            display: flex; gap: 1.2rem; flex-wrap: wrap;
-            margin-top: 0.7rem; font-size: 0.78rem; color: var(--muted);
-            border-top: 1px solid var(--border); padding-top: 0.6rem;
+        .solar-timeline { margin-top: 0.6rem; }
+        .solar-timeline-label {
+            font-size: 0.72rem; color: var(--muted); margin-bottom: 0.35rem;
+            display: flex; justify-content: space-between;
         }
-        .wx-meta .wx-reco {
-            color: var(--green); font-weight: 600;
+        .solar-track {
+            display: flex; height: 28px; border-radius: 6px; overflow: hidden;
+            background: rgba(75,85,99,0.2); position: relative;
         }
+        .solar-seg {
+            height: 100%; transition: background 0.4s;
+            position: relative; display: flex; align-items: center; justify-content: center;
+            font-size: 0.65rem; font-weight: 600; color: transparent; overflow: hidden;
+        }
+        .solar-seg.seg-good  { background: rgba(34,197,94,0.65); color: rgba(255,255,255,0.9); }
+        .solar-seg.seg-ok    { background: rgba(245,158,11,0.5); color: rgba(255,255,255,0.8); }
+        .solar-seg.seg-low   { background: rgba(156,163,175,0.25); }
+        .solar-seg.seg-none  { background: rgba(75,85,99,0.15); }
+        .solar-now-marker {
+            position: absolute; top: -3px; bottom: -3px; width: 2.5px;
+            background: var(--accent); border-radius: 2px; z-index: 2;
+            box-shadow: 0 0 6px rgba(59,130,246,0.6);
+        }
+        .solar-hours {
+            display: flex; justify-content: space-between;
+            font-size: 0.65rem; color: var(--muted); margin-top: 0.25rem;
+            padding: 0 1px;
+        }
+        .solar-legend {
+            display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.7rem; color: var(--muted);
+        }
+        .solar-legend span::before {
+            content: ''; display: inline-block; width: 10px; height: 10px;
+            border-radius: 2px; margin-right: 4px; vertical-align: -1px;
+        }
+        .solar-legend .leg-good::before  { background: rgba(34,197,94,0.65); }
+        .solar-legend .leg-ok::before    { background: rgba(245,158,11,0.5); }
+        .solar-legend .leg-low::before   { background: rgba(156,163,175,0.25); }
 
         .wx-placeholder {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -935,26 +956,56 @@ function renderWeather(w) {
     document.getElementById('wxHeading').innerHTML =
         `${c.weather_icon} Wetter &middot; ${w.location.name}`;
 
-    let barsHtml = '';
+    const bestHours = w.solar.best_hours || [];
+    const hasSolar = bestHours.length > 0;
+    const peakRad = w.solar.peak_radiation || 0;
+
+    let recoClass, recoIcon, recoTitle, recoSub;
+    if (hasSolar && peakRad >= 300) {
+        recoClass = 'reco-good';
+        recoIcon = '\u{1F50C}';
+        recoTitle = `Maschinen starten: ${w.solar.window}`;
+        recoSub = `Bis ${peakRad} W/m² Sonnenstrahlung — Waschmaschine, Trockner, Spülmaschine jetzt einplanen!`;
+    } else if (hasSolar) {
+        recoClass = 'reco-ok';
+        recoIcon = '\u{26A0}\u{FE0F}';
+        recoTitle = `Eingeschränkt nutzbar: ${w.solar.window}`;
+        recoSub = `Nur ${peakRad} W/m² erwartet — reicht für kleinere Verbraucher, große Geräte besser verschieben.`;
+    } else {
+        recoClass = 'reco-bad';
+        recoIcon = '\u{1F6D1}';
+        recoTitle = 'Heute kein gutes Solarfenster';
+        recoSub = 'Kaum Sonnenstrahlung erwartet — Verbrauch möglichst auf einen besseren Tag verschieben.';
+    }
+
+    const firstHour = w.hourly[0]?.hour ?? 5;
+    const lastHour = w.hourly[w.hourly.length - 1]?.hour ?? 21;
+    const totalHours = lastHour - firstHour + 1;
+
+    let segHtml = '';
     w.hourly.forEach(h => {
-        const pct = Math.max(3, (h.radiation / maxRad) * 100);
-        const cls = h.radiation <= 0 ? 's-none'
-                  : h.radiation < 150 ? 's-low'
-                  : h.radiation < 400 ? 's-medium'
-                  : h.radiation < maxRad * 0.9 ? 's-high' : 's-peak';
-        const now = h.hour === nowHour ? ' s-now' : '';
-        const showLabel = h.hour % 2 === 0 || w.hourly.length <= 10;
-        barsHtml += `<div class="solar-bar-wrap" title="${h.time}: ${Math.round(h.radiation)} W/m²  ☁ ${h.cloud_cover}%  ${fmt(h.temperature, 0)}°C">
-            <div class="solar-bar ${cls}${now}" style="height:${pct}%"></div>
-            ${showLabel ? `<span class="hour-label">${String(h.hour).padStart(2, '0')}</span>` : ''}
-        </div>`;
+        const seg = bestHours.includes(h.hour) ? (h.radiation >= 300 ? 'seg-good' : 'seg-ok')
+                  : h.radiation > 50 ? 'seg-low' : 'seg-none';
+        const widthPct = (1 / totalHours) * 100;
+        const label = seg === 'seg-good' || seg === 'seg-ok' ? `${Math.round(h.radiation)}` : '';
+        segHtml += `<div class="solar-seg ${seg}" style="width:${widthPct}%" title="${h.time}: ${Math.round(h.radiation)} W/m² • ☁ ${h.cloud_cover}% • ${fmt(h.temperature, 0)}°C">${label}</div>`;
     });
 
-    const recoHtml = w.solar.window
-        ? `<span class="wx-reco">&#128262; ${w.solar.window} &middot; bis ${w.solar.peak_radiation} W/m&sup2;</span>`
-        : `<span>${w.solar.message || 'Keine Prognose'}</span>`;
+    const nowPct = nowHour >= firstHour && nowHour <= lastHour
+        ? ((nowHour - firstHour + new Date().getMinutes() / 60) / totalHours) * 100 : -1;
+    const nowMarker = nowPct >= 0 ? `<div class="solar-now-marker" style="left:${nowPct}%"></div>` : '';
+
+    const hourLabels = w.hourly.filter(h => h.hour % 3 === 0 || h.hour === firstHour || h.hour === lastHour)
+        .map(h => `<span>${String(h.hour).padStart(2, '0')}</span>`).join('');
 
     document.getElementById('wxContent').innerHTML = `
+        <div class="wx-reco-banner ${recoClass}">
+            <div class="reco-icon">${recoIcon}</div>
+            <div class="reco-text">
+                <div class="reco-title">${recoTitle}</div>
+                <div class="reco-sub">${recoSub}</div>
+            </div>
+        </div>
         <div class="weather-body">
             <div class="wx-current">
                 <div class="wx-main">
@@ -967,20 +1018,28 @@ function renderWeather(w) {
                     <span>&#128167; ${c.humidity}%</span>
                     <span>&#9729;&#65039; ${c.cloud_cover}%</span>
                 </div>
-                ${d.temp_max !== null ? `<div class="wx-details"><span>&#9650; ${fmt(d.temp_max, 0)}&deg; &nbsp;&#9660; ${fmt(d.temp_min, 0)}&deg;</span></div>` : ''}
-            </div>
-            <div class="wx-forecast">
-                <div class="wx-forecast-title">
-                    <span>Solarstrahlung heute (W/m&sup2;)</span>
-                    <span>${d.sunshine_hours !== null ? '&#9728;&#65039; ' + fmt(d.sunshine_hours, 1) + 'h Sonne' : ''}</span>
+                <div class="wx-details">
+                    ${d.temp_max !== null ? `<span>&#9650; ${fmt(d.temp_max, 0)}&deg; &#9660; ${fmt(d.temp_min, 0)}&deg;</span>` : ''}
+                    ${d.sunrise ? `<span>&#127749; ${d.sunrise}</span>` : ''}
+                    ${d.sunset ? `<span>&#127751; ${d.sunset}</span>` : ''}
                 </div>
-                <div class="solar-bars">${barsHtml}</div>
             </div>
-        </div>
-        <div class="wx-meta">
-            ${recoHtml}
-            ${d.sunrise ? `<span>&#127749; ${d.sunrise}</span>` : ''}
-            ${d.sunset ? `<span>&#127751; ${d.sunset}</span>` : ''}
+            <div class="solar-timeline">
+                <div class="solar-timeline-label">
+                    <span>Tagesverlauf Solarertrag</span>
+                    <span>${d.sunshine_hours !== null ? fmt(d.sunshine_hours, 1) + 'h Sonne' : ''}</span>
+                </div>
+                <div class="solar-track">
+                    ${segHtml}
+                    ${nowMarker}
+                </div>
+                <div class="solar-hours">${hourLabels}</div>
+                <div class="solar-legend">
+                    <span class="leg-good">Starten</span>
+                    <span class="leg-ok">Eingeschr&auml;nkt</span>
+                    <span class="leg-low">Wenig Ertrag</span>
+                </div>
+            </div>
         </div>
     `;
 }
