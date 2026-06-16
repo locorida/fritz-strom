@@ -14,6 +14,7 @@ Lokale Web-App zur Visualisierung der Energiedaten eines **FRITZ!Smart Energy 25
 - Darstellung: gruppiert oder gestapelt
 - Live-Kennzahlen: Netzleistung, Richtungsanzeige, Tages-Bezug/-Einspeisung, Netto-Bilanz, Kosten
 - Speicher-Simulation: Amortisationsrechnung für Batteriespeicher
+- **Wetter-Widget** mit PLZ-Eingabe: Aktuelle Temperatur, Sonnenschein, Solarstrahlungs-Prognose (stündlich), beste Verbrauchszeit
 - Automatische Aktualisierung alle 30 Sekunden
 - Eigenständiger Collector-Service — loggt unabhängig vom Browser
 - Filter bleibt über Seitenrefresh erhalten (sessionStorage)
@@ -91,6 +92,18 @@ Der FRITZ!Smart Energy 250 erzeugt typischerweise drei Einträge:
 | `-1` | Bezug (Verbrauch vom Netz, A+) |
 | `-2` | Einspeisung (ins Netz, A−) |
 
+## Wetter & Solarprognose
+
+Das Dashboard enthält ein Wetter-Widget, das bei der Planung hilft, wann Geräte eingeschaltet werden sollten:
+
+- **PLZ eingeben** — wird im Browser gespeichert (localStorage)
+- **Aktuelle Wetterdaten** via [Open-Meteo](https://open-meteo.com/) (kostenlos, kein API-Key nötig)
+- **Solarstrahlungs-Balkendiagramm** zeigt stündlich die erwartete Globalstrahlung (W/m²)
+- **Beste Verbrauchszeit** wird automatisch berechnet (Stunden mit > 50% der Spitzenstrahlung)
+- Daten werden serverseitig 30 Minuten gecacht
+
+Geocoding erfolgt über [Zippopotam.us](https://zippopotam.us/) (Fallback: Nominatim/OpenStreetMap).
+
 ## API-Endpunkte
 
 | Endpunkt | Beschreibung |
@@ -100,6 +113,7 @@ Der FRITZ!Smart Energy 250 erzeugt typischerweise drei Einträge:
 | `?action=stats&ain=...` | Historische Statistiken von der Fritz!Box (60 Min / Tage / Monate) |
 | `?action=history&date=YYYY-MM-DD` | Lokale Aufzeichnung mit Richtungserkennung |
 | `?action=devicelist` | Alle Smart-Home-Geräte (zur AIN-Ermittlung) |
+| `/api/weather.php?plz=12345` | Wetter + Solarprognose für deutsche PLZ |
 
 ## Hinweise
 
@@ -120,5 +134,6 @@ Der FRITZ!Smart Energy 250 erzeugt typischerweise drei Einträge:
 └── src/
     ├── index.html          # Frontend (Chart.js)
     └── api/
-        └── fritz.php       # Backend (AHA-HTTP-Interface + History-API)
+        ├── fritz.php       # Backend (AHA-HTTP-Interface + History-API)
+        └── weather.php     # Wetter-API (Open-Meteo + PLZ-Geocoding)
 ```
