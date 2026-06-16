@@ -20,73 +20,34 @@
         h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 1.2rem; }
         h1 .fritz { color: var(--accent); }
 
-        .top-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.8rem;
-            margin-bottom: 1rem;
-        }
-
-        .signal-card {
-            background: var(--surface);
-            border: 2px solid var(--border);
-            border-radius: 14px;
-            padding: 1.2rem 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 1.2rem;
+        .live-bar {
+            display: flex; align-items: center; gap: 0.8rem;
+            background: var(--surface); border: 1.5px solid var(--border);
+            border-radius: 10px; padding: 0.5rem 1rem; margin-bottom: 0.6rem;
             transition: border-color 0.5s, background 0.5s;
         }
-        .signal-card.go {
-            border-color: var(--green);
-            background: rgba(34,197,94,0.08);
-        }
-        .signal-card.wait {
-            border-color: var(--red);
-            background: rgba(239,68,68,0.05);
-        }
-        .signal-card.neutral {
-            border-color: var(--accent);
-            background: rgba(59,130,246,0.05);
-        }
-        .signal-icon {
-            font-size: 2.8rem;
-            line-height: 1;
-            flex-shrink: 0;
-        }
-        .signal-card .text-block { flex: 1; }
-        .signal-card .title { font-size: 1.1rem; font-weight: 700; }
-        .signal-card .subtitle { font-size: 0.8rem; color: var(--muted); margin-top: 0.2rem; }
-
-        .direction-card {
-            background: var(--surface);
-            border: 2px solid var(--border);
-            border-radius: 14px;
-            padding: 1.2rem 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 1.2rem;
-            transition: border-color 0.5s, background 0.5s;
-        }
-        .direction-card.importing { border-color: var(--red); background: rgba(239,68,68,0.05); }
-        .direction-card.exporting { border-color: var(--green); background: rgba(34,197,94,0.08); }
-        .direction-card .dir-icon { font-size: 2.8rem; line-height: 1; flex-shrink: 0; }
-        .direction-card .title { font-size: 1.1rem; font-weight: 700; }
-        .direction-card .subtitle { font-size: 0.8rem; color: var(--muted); margin-top: 0.2rem; }
+        .live-bar.lb-go      { border-color: var(--green); background: rgba(34,197,94,0.07); }
+        .live-bar.lb-wait    { border-color: var(--red);   background: rgba(239,68,68,0.05); }
+        .live-bar.lb-neutral { border-color: var(--accent); background: rgba(59,130,246,0.04); }
+        .live-bar .lb-icon   { font-size: 1.4rem; line-height: 1; flex-shrink: 0; }
+        .live-bar .lb-power  { font-size: 1.1rem; font-weight: 700; white-space: nowrap; }
+        .live-bar .lb-label  { font-size: 0.82rem; font-weight: 600; }
+        .live-bar .lb-sub    { font-size: 0.75rem; color: var(--muted); }
+        .live-bar .lb-sep    { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
 
         .kpi-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 0.6rem;
-            margin-bottom: 1rem;
+            grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
+            gap: 0.4rem;
+            margin-bottom: 0.6rem;
         }
         .kpi {
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 8px; padding: 0.7rem 1rem;
+            border-radius: 6px; padding: 0.45rem 0.7rem;
         }
-        .kpi .label { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.15rem; }
-        .kpi .val { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .kpi .sub { font-size: 0.68rem; color: var(--muted); margin-top: 0.1rem; }
+        .kpi .label { font-size: 0.65rem; color: var(--muted); margin-bottom: 0.1rem; }
+        .kpi .val { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .kpi .sub { font-size: 0.62rem; color: var(--muted); margin-top: 0.05rem; }
         .c-blue { color: var(--accent); }
         .c-red { color: var(--red); }
         .c-green { color: var(--green); }
@@ -152,35 +113,166 @@
 
         .battery-section {
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem;
+            border-radius: 10px; margin-bottom: 0.6rem;
         }
-        .battery-section h2 {
-            font-size: 0.85rem; font-weight: 600; color: var(--muted);
-            margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem;
+        .battery-toggle {
+            font-size: 0.8rem; font-weight: 600; color: var(--muted);
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.6rem 1rem; cursor: pointer; user-select: none;
+            background: none; border: none; width: 100%; text-align: left;
+            font-family: inherit; transition: color 0.15s;
         }
+        .battery-toggle:hover { color: var(--text); }
+        .battery-toggle .chevron {
+            transition: transform 0.25s; display: inline-block; font-size: 0.7rem;
+        }
+        .battery-section.open .battery-toggle .chevron { transform: rotate(90deg); }
+        .battery-body {
+            display: none; padding: 0 1rem 0.7rem;
+        }
+        .battery-section.open .battery-body { display: block; }
         .battery-grid {
-            display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 0.4rem;
         }
         .battery-grid .kpi { background: rgba(255,255,255,0.03); }
+
+        .weather-section {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem;
+        }
+        .weather-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.8rem;
+        }
+        .weather-header h2 {
+            font-size: 0.85rem; font-weight: 600; color: var(--muted); margin: 0;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .plz-form {
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+        .plz-form input {
+            background: var(--bg); color: var(--text); border: 1px solid var(--border);
+            border-radius: 6px; padding: 0.3rem 0.5rem; font-size: 0.8rem;
+            width: 5.5rem; text-align: center; font-family: inherit;
+        }
+        .plz-form input:focus { outline: none; border-color: var(--accent); }
+        .plz-form button {
+            background: var(--accent); color: #fff; border: none; border-radius: 6px;
+            padding: 0.3rem 0.7rem; font-size: 0.8rem; cursor: pointer;
+            font-family: inherit; transition: opacity 0.15s;
+        }
+        .plz-form button:hover { opacity: 0.85; }
+
+        .weather-body {
+            display: grid; grid-template-columns: auto 1fr; gap: 1.2rem;
+            align-items: start;
+        }
+        .wx-current {
+            display: flex; flex-direction: column; gap: 0.3rem; min-width: 160px;
+        }
+        .wx-current .wx-main {
+            display: flex; align-items: center; gap: 0.8rem;
+        }
+        .wx-current .wx-icon { font-size: 2.4rem; line-height: 1; }
+        .wx-current .wx-temp { font-size: 1.8rem; font-weight: 700; }
+        .wx-current .wx-desc { font-size: 0.82rem; color: var(--muted); }
+        .wx-current .wx-details {
+            display: flex; gap: 1rem; font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem;
+        }
+
+        .wx-reco-banner {
+            border-radius: 10px; padding: 0.7rem 1rem; margin-bottom: 0.8rem;
+            display: flex; align-items: center; gap: 0.8rem;
+        }
+        .wx-reco-banner .reco-icon { font-size: 1.6rem; line-height: 1; flex-shrink: 0; }
+        .wx-reco-banner .reco-text { flex: 1; }
+        .wx-reco-banner .reco-title { font-size: 0.95rem; font-weight: 700; }
+        .wx-reco-banner .reco-sub { font-size: 0.78rem; margin-top: 0.15rem; opacity: 0.85; }
+        .wx-reco-banner.reco-good {
+            background: rgba(34,197,94,0.12); border: 1.5px solid var(--green); color: var(--green);
+        }
+        .wx-reco-banner.reco-ok {
+            background: rgba(245,158,11,0.10); border: 1.5px solid var(--orange); color: var(--orange);
+        }
+        .wx-reco-banner.reco-bad {
+            background: rgba(239,68,68,0.08); border: 1.5px solid var(--red); color: var(--red);
+        }
+
+        .solar-timeline { margin-top: 0.6rem; }
+        .solar-timeline-label {
+            font-size: 0.72rem; color: var(--muted); margin-bottom: 0.35rem;
+            display: flex; justify-content: space-between;
+        }
+        .solar-track {
+            display: flex; height: 28px; border-radius: 6px; overflow: hidden;
+            background: rgba(75,85,99,0.2); position: relative;
+        }
+        .solar-seg {
+            height: 100%; transition: background 0.4s;
+            position: relative; display: flex; align-items: center; justify-content: center;
+            font-size: 0.65rem; font-weight: 600; color: transparent; overflow: hidden;
+        }
+        .solar-seg.seg-good  { background: rgba(34,197,94,0.65); color: rgba(255,255,255,0.9); }
+        .solar-seg.seg-ok    { background: rgba(245,158,11,0.5); color: rgba(255,255,255,0.8); }
+        .solar-seg.seg-low   { background: rgba(156,163,175,0.25); }
+        .solar-seg.seg-none  { background: rgba(75,85,99,0.15); }
+        .solar-now-marker {
+            position: absolute; top: -3px; bottom: -3px; width: 2.5px;
+            background: var(--accent); border-radius: 2px; z-index: 2;
+            box-shadow: 0 0 6px rgba(59,130,246,0.6);
+        }
+        .solar-hours {
+            display: flex; justify-content: space-between;
+            font-size: 0.65rem; color: var(--muted); margin-top: 0.25rem;
+            padding: 0 1px;
+        }
+        .solar-legend {
+            display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.7rem; color: var(--muted);
+        }
+        .solar-legend span::before {
+            content: ''; display: inline-block; width: 10px; height: 10px;
+            border-radius: 2px; margin-right: 4px; vertical-align: -1px;
+        }
+        .solar-legend .leg-good::before  { background: rgba(34,197,94,0.65); }
+        .solar-legend .leg-ok::before    { background: rgba(245,158,11,0.5); }
+        .solar-legend .leg-low::before   { background: rgba(156,163,175,0.25); }
+
+        .wx-placeholder {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 0.6rem; padding: 1.5rem; color: var(--muted); font-size: 0.85rem;
+        }
+        .wx-placeholder .wx-prompt { font-size: 1.5rem; }
+
+        @media (max-width: 700px) {
+            .weather-body { grid-template-columns: 1fr; }
+            .top-row { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
 
 <h1><span class="fritz">FRITZ!Box</span> Energiemonitor</h1>
 
-<div class="top-row">
-    <div class="signal-card neutral" id="signalCard">
-        <div class="signal-icon" id="signalIcon">&#9889;</div>
-        <div class="text-block">
-            <div class="title" id="signalTitle">Wird ermittelt…</div>
-            <div class="subtitle" id="signalSub">Warte auf zweite Messung</div>
+<div class="live-bar lb-neutral" id="liveBar">
+    <span class="lb-icon" id="lbIcon">&#9889;</span>
+    <span class="lb-power" id="lbPower">-- W</span>
+    <span class="lb-label" id="lbLabel">Wird ermittelt…</span>
+    <span class="lb-sub" id="lbSub">Warte auf Messung</span>
+</div>
+
+<div class="weather-section" id="weatherSection">
+    <div class="weather-header">
+        <h2 id="wxHeading">&#9728;&#65039; Wetter</h2>
+        <div class="plz-form">
+            <input type="text" id="plzInput" placeholder="PLZ" maxlength="5" inputmode="numeric">
+            <button id="plzSave">Laden</button>
         </div>
     </div>
-    <div class="direction-card" id="dirCard">
-        <div class="dir-icon" id="dirIcon">&#8645;</div>
-        <div class="text-block">
-            <div class="title" id="dirTitle">Netzleistung</div>
-            <div class="subtitle" id="dirSub">Richtung wird erkannt…</div>
+    <div id="wxContent">
+        <div class="wx-placeholder">
+            <div class="wx-prompt">&#127780;&#65039;</div>
+            <div>PLZ eingeben, um Wetter &amp; Solarprognose zu laden</div>
         </div>
     </div>
 </div>
@@ -188,8 +280,13 @@
 <div class="kpi-grid" id="kpiGrid"></div>
 
 <div class="battery-section" id="batterySection" style="display:none">
-    <h2>&#128267; Speicher-Simulation: <span id="batteryName"></span></h2>
-    <div class="battery-grid" id="batteryGrid"></div>
+    <button class="battery-toggle" id="batteryToggle">
+        <span class="chevron">&#9658;</span>
+        &#128267; Speicher-Simulation: <span id="batteryName"></span>
+    </button>
+    <div class="battery-body">
+        <div class="battery-grid" id="batteryGrid"></div>
+    </div>
 </div>
 
 <div class="controls">
@@ -272,21 +369,19 @@ function buildTimestamps(dt, grid, count, period) {
 }
 
 function updateSignal(liveData) {
-    const sc = document.getElementById('signalCard');
-    const icon = document.getElementById('signalIcon');
-    const title = document.getElementById('signalTitle');
-    const sub = document.getElementById('signalSub');
-    const dc = document.getElementById('dirCard');
-    const dIcon = document.getElementById('dirIcon');
-    const dTitle = document.getElementById('dirTitle');
-    const dSub = document.getElementById('dirSub');
+    const bar   = document.getElementById('liveBar');
+    const icon  = document.getElementById('lbIcon');
+    const power = document.getElementById('lbPower');
+    const label = document.getElementById('lbLabel');
+    const sub   = document.getElementById('lbSub');
 
     const powerW = liveData.meters[0]?.power / 1000 || 0;
 
     if (!prevLive) {
         prevLive = liveData;
-        dTitle.textContent = `${fmt(powerW, 0)} W`;
-        dSub.textContent = 'Richtung wird nach 30s erkannt…';
+        power.textContent = `${fmt(powerW, 0)} W`;
+        label.textContent = 'Richtung wird erkannt…';
+        sub.textContent = '';
         return;
     }
 
@@ -298,39 +393,26 @@ function updateSignal(liveData) {
     const dBezug = bNow.energy - bPrev.energy;
     const dEinsp = eNow.energy - ePrev.energy;
 
+    power.textContent = `${fmt(powerW, 0)} W`;
+
     if (dEinsp > dBezug) {
         currentDirection = 'export';
-        sc.className = 'signal-card go';
-        icon.textContent = '\u{1F50C}';
-        title.textContent = 'JETZT verbrauchen!';
-        sub.textContent = `Du speist ${fmt(powerW, 0)} W ein — Waschmaschine, Trockner, Spüler starten!`;
-
-        dc.className = 'direction-card exporting';
-        dIcon.textContent = '⬆';
-        dTitle.textContent = `${fmt(powerW, 0)} W Einspeisung`;
-        dSub.textContent = `Solar-Überschuss — ${fmt(prices.einspeisung, 0)} ct/kWh statt ${fmt(prices.bezug, 1)} ct`;
+        bar.className = 'live-bar lb-go';
+        icon.textContent = '⬆';
+        label.textContent = 'Einspeisung';
+        sub.textContent = `Solar-Überschuss — Geräte jetzt starten!`;
     } else if (dBezug > 0) {
         currentDirection = 'import';
-        sc.className = 'signal-card wait';
-        icon.textContent = '\u{1F6D1}';
-        title.textContent = 'Verbrauch vermeiden';
-        sub.textContent = `${fmt(powerW, 0)} W Netzbezug — kostet ${fmt(prices.bezug, 2)} ct/kWh`;
-
-        dc.className = 'direction-card importing';
-        dIcon.textContent = '⬇';
-        dTitle.textContent = `${fmt(powerW, 0)} W Bezug`;
-        dSub.textContent = 'Strom kommt vom Netz';
+        bar.className = 'live-bar lb-wait';
+        icon.textContent = '⬇';
+        label.textContent = 'Netzbezug';
+        sub.textContent = `${fmt(prices.bezug, 1)} ct/kWh`;
     } else {
         currentDirection = 'balanced';
-        sc.className = 'signal-card neutral';
+        bar.className = 'live-bar lb-neutral';
         icon.textContent = '⚖';
-        title.textContent = 'Ausgeglichen';
-        sub.textContent = `${fmt(powerW, 0)} W — Produktion ≈ Verbrauch`;
-
-        dc.className = 'direction-card';
-        dIcon.textContent = '↔';
-        dTitle.textContent = `${fmt(powerW, 0)} W`;
-        dSub.textContent = 'Kein Nettotransfer';
+        label.textContent = 'Ausgeglichen';
+        sub.textContent = 'Produktion ≈ Verbrauch';
     }
 
     prevLive = liveData;
@@ -798,6 +880,137 @@ function renderRangeDetail(labels, datasets) {
     panel.classList.add('visible');
 }
 
+// ── Weather Widget ──
+
+let weatherData = null;
+
+function getStoredPlz() { return localStorage.getItem('fritz_weather_plz') || ''; }
+function storePlz(plz) { localStorage.setItem('fritz_weather_plz', plz); }
+
+async function fetchWeather(plz) {
+    if (!plz || !/^\d{4,5}$/.test(plz)) return;
+    try {
+        const res = await fetch(`/api/weather.php?plz=${encodeURIComponent(plz)}`);
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
+        weatherData = await res.json();
+        renderWeather(weatherData);
+    } catch (e) {
+        document.getElementById('wxContent').innerHTML =
+            `<div class="wx-placeholder"><div style="color:var(--red);font-size:0.85rem">${e.message}</div></div>`;
+    }
+}
+
+function renderWeather(w) {
+    const c = w.current;
+    const d = w.daily;
+    const nowHour = new Date().getHours();
+    const maxRad = Math.max(...w.hourly.map(h => h.radiation), 1);
+
+    document.getElementById('wxHeading').innerHTML =
+        `${c.weather_icon} Wetter &middot; ${w.location.name}`;
+
+    const bestHours = w.solar.best_hours || [];
+    const hasSolar = bestHours.length > 0;
+    const peakRad = w.solar.peak_radiation || 0;
+
+    let recoClass, recoIcon, recoTitle, recoSub;
+    if (hasSolar && peakRad >= 300) {
+        recoClass = 'reco-good';
+        recoIcon = '\u{1F50C}';
+        recoTitle = `Maschinen starten: ${w.solar.window}`;
+        recoSub = `Bis ${peakRad} W/m² Sonnenstrahlung — Waschmaschine, Trockner, Spülmaschine jetzt einplanen!`;
+    } else if (hasSolar) {
+        recoClass = 'reco-ok';
+        recoIcon = '\u{26A0}\u{FE0F}';
+        recoTitle = `Eingeschränkt nutzbar: ${w.solar.window}`;
+        recoSub = `Nur ${peakRad} W/m² erwartet — reicht für kleinere Verbraucher, große Geräte besser verschieben.`;
+    } else {
+        recoClass = 'reco-bad';
+        recoIcon = '\u{1F6D1}';
+        recoTitle = 'Heute kein gutes Solarfenster';
+        recoSub = 'Kaum Sonnenstrahlung erwartet — Verbrauch möglichst auf einen besseren Tag verschieben.';
+    }
+
+    const firstHour = w.hourly[0]?.hour ?? 5;
+    const lastHour = w.hourly[w.hourly.length - 1]?.hour ?? 21;
+    const totalHours = lastHour - firstHour + 1;
+
+    let segHtml = '';
+    w.hourly.forEach(h => {
+        const seg = bestHours.includes(h.hour) ? (h.radiation >= 300 ? 'seg-good' : 'seg-ok')
+                  : h.radiation > 50 ? 'seg-low' : 'seg-none';
+        const widthPct = (1 / totalHours) * 100;
+        const label = seg === 'seg-good' || seg === 'seg-ok' ? `${Math.round(h.radiation)}` : '';
+        segHtml += `<div class="solar-seg ${seg}" style="width:${widthPct}%" title="${h.time}: ${Math.round(h.radiation)} W/m² • ☁ ${h.cloud_cover}% • ${fmt(h.temperature, 0)}°C">${label}</div>`;
+    });
+
+    const nowPct = nowHour >= firstHour && nowHour <= lastHour
+        ? ((nowHour - firstHour + new Date().getMinutes() / 60) / totalHours) * 100 : -1;
+    const nowMarker = nowPct >= 0 ? `<div class="solar-now-marker" style="left:${nowPct}%"></div>` : '';
+
+    const hourLabels = w.hourly.filter(h => h.hour % 3 === 0 || h.hour === firstHour || h.hour === lastHour)
+        .map(h => `<span>${String(h.hour).padStart(2, '0')}</span>`).join('');
+
+    document.getElementById('wxContent').innerHTML = `
+        <div class="wx-reco-banner ${recoClass}">
+            <div class="reco-icon">${recoIcon}</div>
+            <div class="reco-text">
+                <div class="reco-title">${recoTitle}</div>
+                <div class="reco-sub">${recoSub}</div>
+            </div>
+        </div>
+        <div class="weather-body">
+            <div class="wx-current">
+                <div class="wx-main">
+                    <span class="wx-icon">${c.weather_icon}</span>
+                    <span class="wx-temp">${fmt(c.temperature, 0)}&deg;C</span>
+                </div>
+                <div class="wx-desc">${c.weather_text}</div>
+                <div class="wx-details">
+                    <span>&#128168; ${fmt(c.wind_speed, 0)} km/h</span>
+                    <span>&#128167; ${c.humidity}%</span>
+                    <span>&#9729;&#65039; ${c.cloud_cover}%</span>
+                </div>
+                <div class="wx-details">
+                    ${d.temp_max !== null ? `<span>&#9650; ${fmt(d.temp_max, 0)}&deg; &#9660; ${fmt(d.temp_min, 0)}&deg;</span>` : ''}
+                    ${d.sunrise ? `<span>&#127749; ${d.sunrise}</span>` : ''}
+                    ${d.sunset ? `<span>&#127751; ${d.sunset}</span>` : ''}
+                </div>
+            </div>
+            <div class="solar-timeline">
+                <div class="solar-timeline-label">
+                    <span>Tagesverlauf Solarertrag</span>
+                    <span>${d.sunshine_hours !== null ? fmt(d.sunshine_hours, 1) + 'h Sonne' : ''}</span>
+                </div>
+                <div class="solar-track">
+                    ${segHtml}
+                    ${nowMarker}
+                </div>
+                <div class="solar-hours">${hourLabels}</div>
+                <div class="solar-legend">
+                    <span class="leg-good">Starten</span>
+                    <span class="leg-ok">Eingeschr&auml;nkt</span>
+                    <span class="leg-low">Wenig Ertrag</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+document.getElementById('plzSave').addEventListener('click', () => {
+    const plz = document.getElementById('plzInput').value.trim();
+    if (/^\d{4,5}$/.test(plz)) { storePlz(plz); fetchWeather(plz); }
+});
+document.getElementById('plzInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { document.getElementById('plzSave').click(); }
+});
+
+const savedPlz = getStoredPlz();
+if (savedPlz) {
+    document.getElementById('plzInput').value = savedPlz;
+    fetchWeather(savedPlz);
+}
+
 async function fetchData() {
     showLoading(true);
     try {
@@ -838,6 +1051,10 @@ setupBtnGroup('periodGroup', v => { currentPeriod = v; updateRangeInputs(); rend
 setupBtnGroup('unitGroup',   v => { currentUnit = v;   renderChart(); });
 setupBtnGroup('styleGroup',  v => { currentStyle = v;  renderChart(); });
 
+document.getElementById('batteryToggle').addEventListener('click', () => {
+    document.getElementById('batterySection').classList.toggle('open');
+});
+
 document.getElementById('rangeApply').addEventListener('click', applyRange);
 document.getElementById('rangeReset').addEventListener('click', () => { clearRange(); renderChart(); });
 document.getElementById('rangeFrom').addEventListener('keydown', e => { if (e.key === 'Enter') applyRange(); });
@@ -853,6 +1070,7 @@ if (savedPeriod && savedPeriod !== currentPeriod) {
 updateRangeInputs();
 fetchData().then(() => restoreRange());
 setInterval(fetchData, 30000);
+setInterval(() => { const plz = getStoredPlz(); if (plz) fetchWeather(plz); }, 1800000);
 </script>
 </body>
 </html>
