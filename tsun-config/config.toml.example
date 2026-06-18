@@ -1,0 +1,26 @@
+# TSUN GEN3 Proxy — Konfiguration
+# Doku: https://github.com/s-allius/tsun-gen3-proxy
+#
+# Anleitung:
+# 1. Kopiere diese Datei: cp config.toml.example config.toml
+# 2. Trage deine Wechselrichter-Seriennummer ein (steht auf dem Geraet)
+
+[mqtt]
+host = 'mqtt-broker'
+port = 1883
+
+[ha]
+auto_conf_prefix = 'homeassistant'
+discovery_prefix = 'homeassistant'
+entity_prefix = 'tsun'
+
+[tsun]
+enabled = true
+host = 'logger.talent-monitoring.com'
+port = 5005
+
+[inverters."YOUR_SERIAL_NUMBER"]
+node_id = 'solar'
+suggested_area = 'Garage'
+pv1 = {type = '', manufacturer = ''}
+pv2 = {type = '', manufacturer = ''}

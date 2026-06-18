@@ -1,0 +1,11 @@
+# Nur logger.talent-monitoring.com auf den lokalen tsun-proxy umleiten
+# Alles andere geht an Quad9 (Schweiz, DSGVO-konform)
+#
+# Anleitung:
+# 1. Kopiere diese Datei: cp dnsmasq.conf.example dnsmasq.conf
+# 2. Ersetze YOUR_DOCKER_HOST_IP mit der LAN-IP deines Docker-Hosts
+
+server=9.9.9.9
+server=149.112.112.112
+
+address=/logger.talent-monitoring.com/YOUR_DOCKER_HOST_IP
