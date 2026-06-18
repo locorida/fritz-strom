@@ -23,3 +23,33 @@ services:
     extra_hosts:
       - "fritz.box:192.168.178.1"
     command: php /app/collect.php
+
+  tsun-proxy:
+    image: ghcr.io/s-allius/tsun-gen3-proxy:latest
+    ports:
+      - "5005:5005"
+      - "8127:8127"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    volumes:
+      - ./tsun-config:/home/tsun-proxy/config
+      - ./tsun-log:/home/tsun-proxy/log
+    restart: unless-stopped
+    depends_on:
+      - mqtt-broker
+
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    restart: unless-stopped
+
+  dns:
+    image: jpillora/dnsmasq
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    volumes:
+      - ./dns/dnsmasq.conf:/etc/dnsmasq.conf
+    restart: unless-stopped

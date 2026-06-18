@@ -1,2 +1,5 @@
 .env
 data/
+dns/dnsmasq.conf
+tsun-config/config.toml
+tsun-log/
