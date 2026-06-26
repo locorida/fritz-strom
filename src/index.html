@@ -239,6 +239,56 @@
         .solar-legend .leg-ok::before    { background: rgba(245,158,11,0.5); }
         .solar-legend .leg-low::before   { background: rgba(156,163,175,0.25); }
 
+        .energy-flow-section {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 0.8rem 1rem; margin-bottom: 0.6rem;
+        }
+        .energy-flow-header {
+            font-size: 0.85rem; font-weight: 600; margin-bottom: 0.6rem;
+            display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;
+        }
+        .ef-date-nav {
+            display: flex; align-items: center; gap: 0.3rem; margin-left: auto;
+        }
+        .ef-nav-btn {
+            background: var(--surface); color: var(--text); border: 1px solid var(--border);
+            border-radius: 4px; padding: 0.2rem 0.5rem; font-size: 0.75rem;
+            cursor: pointer; transition: background 0.15s;
+        }
+        .ef-nav-btn:hover { background: var(--border); }
+        .ef-date-input {
+            background: var(--surface); color: var(--text); border: 1px solid var(--border);
+            border-radius: 4px; padding: 0.2rem 0.4rem; font-size: 0.75rem;
+            font-family: inherit;
+        }
+        .energy-flow-body {
+            display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;
+        }
+        .energy-flow-chart-wrap {
+            position: relative; width: 180px; height: 180px; flex-shrink: 0;
+        }
+        .energy-flow-center {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .efc-val { font-size: 1.6rem; font-weight: 700; }
+        .efc-label { font-size: 0.7rem; color: var(--muted); }
+        .energy-flow-bars { flex: 1; min-width: 200px; }
+        .ef-row {
+            display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem;
+        }
+        .ef-row .ef-label { font-size: 0.75rem; width: 100px; color: var(--muted); }
+        .ef-row .ef-bar-wrap {
+            flex: 1; height: 22px; background: rgba(255,255,255,0.05);
+            border-radius: 4px; overflow: hidden; position: relative;
+        }
+        .ef-row .ef-bar {
+            height: 100%; border-radius: 4px; transition: width 0.6s ease;
+            display: flex; align-items: center; padding: 0 6px;
+            font-size: 0.7rem; font-weight: 600; white-space: nowrap;
+        }
+        .ef-row .ef-val { font-size: 0.8rem; font-weight: 700; width: 75px; text-align: right; }
+
         .wx-placeholder {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             gap: 0.6rem; padding: 1.5rem; color: var(--muted); font-size: 0.85rem;
@@ -260,6 +310,10 @@
     <span class="lb-power" id="lbPower">-- W</span>
     <span class="lb-label" id="lbLabel">Wird ermittelt…</span>
     <span class="lb-sub" id="lbSub">Warte auf Messung</span>
+    <span class="lb-sep" id="lbSolarSep" style="display:none"></span>
+    <span class="lb-icon" id="lbSolarIcon" style="display:none"></span>
+    <span class="lb-power" id="lbSolarPower" style="display:none"></span>
+    <span class="lb-label" id="lbSolarLabel" style="display:none"></span>
 </div>
 
 <div class="weather-section" id="weatherSection">
@@ -279,6 +333,28 @@
 </div>
 
 <div class="kpi-grid" id="kpiGrid"></div>
+
+<div class="energy-flow-section" id="energyFlowSection" style="display:none">
+    <div class="energy-flow-header">
+        &#9889; Energiebilanz
+        <div class="ef-date-nav">
+            <button class="ef-nav-btn" id="efPrev">&#9664;</button>
+            <input type="date" id="efDate" class="ef-date-input">
+            <button class="ef-nav-btn" id="efToday">Heute</button>
+            <button class="ef-nav-btn" id="efNext">&#9654;</button>
+        </div>
+    </div>
+    <div class="energy-flow-body">
+        <div class="energy-flow-chart-wrap">
+            <canvas id="energyFlowChart"></canvas>
+            <div class="energy-flow-center" id="energyFlowCenter">
+                <div class="efc-val" id="efcAutarkie">--%</div>
+                <div class="efc-label">Autarkie</div>
+            </div>
+        </div>
+        <div class="energy-flow-bars" id="energyFlowBars"></div>
+    </div>
+</div>
 
 <div class="battery-section" id="batterySection" style="display:none">
     <button class="battery-toggle" id="batteryToggle">
@@ -333,6 +409,7 @@
 const COLORS = {
     bezug:     { bg: 'rgba(239,68,68,0.7)',  border: '#ef4444' },
     einspeise: { bg: 'rgba(34,197,94,0.7)',  border: '#22c55e' },
+    solar:     { bg: 'rgba(245,158,11,0.7)', border: '#f59e0b' },
 };
 
 let chart = null, currentPeriod = 'today', currentUnit = 'kWh', currentStyle = 'grouped';
@@ -342,6 +419,7 @@ let battery = { capacity: 1.92, price: 399, name: 'Speicher' };
 let prevLive = null, currentDirection = null;
 let activeRange = null;
 let historyData = null, historyAvailableDays = [];
+let tsunLive = null, tsunHistory = null;
 
 function fmt(v, d = 1) { return v.toLocaleString('de-DE', { maximumFractionDigits: d }); }
 function setStatus(msg, err = false) { const el = document.getElementById('status'); el.textContent = msg; el.className = err ? 'status error' : 'status'; }
@@ -419,6 +497,18 @@ function updateSignal(liveData) {
     prevLive = liveData;
 }
 
+function updateSolar(data) {
+    const els = ['lbSolarSep','lbSolarIcon','lbSolarPower','lbSolarLabel'].map(id => document.getElementById(id));
+    if (!data?.power_w && data?.power_w !== 0) {
+        els.forEach(el => el.style.display = 'none');
+        return;
+    }
+    els.forEach(el => el.style.display = '');
+    els[1].textContent = '☀️';
+    els[2].textContent = `${fmt(data.power_w, 0)} W`;
+    els[3].textContent = data.power_w > 0 ? 'Solar' : 'Solar (Nacht)';
+}
+
 function renderChart() {
     const cfg = periodConfig(currentPeriod);
     const stacked = currentStyle === 'stacked';
@@ -467,6 +557,28 @@ function renderChart() {
                     backgroundColor: 'rgba(59,130,246,0.1)', borderColor: '#3b82f6',
                     borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true,
                 });
+            }
+            if (tsunHistory?.readings?.length) {
+                const solarPts = [];
+                const findKey = (obj, names) => {
+                    for (const n of names) { if (obj[n] != null) return obj[n]; }
+                    for (const k of Object.keys(obj)) {
+                        for (const n of names) { if (k.includes(n) && obj[k] != null) return obj[k]; }
+                    }
+                    return null;
+                };
+                tsunHistory.readings.forEach(r => {
+                    if (cfg.maxAge && r.ts < now - cfg.maxAge) return;
+                    const pw = findKey(r, ['output_power', 'ac_power', 'power']);
+                    if (pw != null && pw > 0) solarPts.push({x: new Date(r.ts * 1000), y: pw});
+                });
+                if (solarPts.length) {
+                    datasets.push({
+                        label: 'Solar-Erzeugung', data: solarPts,
+                        backgroundColor: 'rgba(245,158,11,0.08)', borderColor: '#f59e0b',
+                        borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true,
+                    });
+                }
             }
             chartType = 'line';
         }
@@ -657,6 +769,21 @@ function renderKPIs() {
         let sum30 = 0;
         for (let i = 0; i < n; i++) sum30 += (eD.values[i]/1000) * diff;
         kpi(`Verschenkt ${n}d`, `${fmt(sum30/100, 2)} €`, 'c-orange');
+
+        if (tsunLive?.daily_kwh) {
+            kpi('Solar heute', `${fmt(tsunLive.daily_kwh, 2)} kWh`, 'c-orange',
+                tsunLive.power_w != null ? `Aktuell ${fmt(tsunLive.power_w, 0)} W` : '');
+            const einspKwh = eD.values[0] / 1000;
+            const eigen = Math.max(0, tsunLive.daily_kwh - einspKwh);
+            kpi('Eigenverbrauch', `${fmt(eigen, 2)} kWh`, 'c-green',
+                `${fmt(eigen / tsunLive.daily_kwh * 100, 0)}% der Erzeugung`);
+            const gesamt = eigen + (bD.values[0] / 1000);
+            const autarkie = gesamt > 0 ? (eigen / gesamt) * 100 : 0;
+            kpi('Autarkie', `${fmt(autarkie, 0)} %`, autarkie > 50 ? 'c-green' : 'c-orange',
+                `${fmt(eigen, 2)} von ${fmt(gesamt, 2)} kWh`);
+        } else if (tsunLive?.power_w != null) {
+            kpi('Solar aktuell', `${fmt(tsunLive.power_w, 0)} W`, 'c-orange');
+        }
     }
 
     if (bD && eD && battery.capacity > 0) {
@@ -819,25 +946,34 @@ function restoreRange() {
     return true;
 }
 
+function matchesRange(d) {
+    if (!activeRange) return true;
+    if (currentPeriod === 'day' || currentPeriod === 'today') {
+        const min = d.getHours() * 60 + d.getMinutes();
+        return min >= activeRange.fromMin && min <= activeRange.toMin;
+    }
+    return d >= activeRange.fromDate && d <= activeRange.toDate;
+}
+
 function filterByRange(labels, datasets) {
     if (!activeRange) return { labels, datasets, filtered: false };
 
     const indices = [];
     labels.forEach((lbl, i) => {
         const d = lbl instanceof Date ? lbl : new Date(lbl);
-        if (currentPeriod === 'day' || currentPeriod === 'today') {
-            const min = d.getHours() * 60 + d.getMinutes();
-            if (min >= activeRange.fromMin && min <= activeRange.toMin) indices.push(i);
-        } else {
-            if (d >= activeRange.fromDate && d <= activeRange.toDate) indices.push(i);
-        }
+        if (matchesRange(d)) indices.push(i);
     });
 
     if (indices.length === 0) return { labels: [], datasets: [], filtered: true, empty: true };
 
     return {
         labels: indices.map(i => labels[i]),
-        datasets: datasets.map(ds => ({ ...ds, data: indices.map(i => ds.data[i]) })),
+        datasets: datasets.map(ds => {
+            if (ds.data.length > 0 && ds.data[0] != null && typeof ds.data[0] === 'object' && 'x' in ds.data[0]) {
+                return { ...ds, data: ds.data.filter(p => matchesRange(p.x instanceof Date ? p.x : new Date(p.x))) };
+            }
+            return { ...ds, data: indices.map(i => ds.data[i]) };
+        }),
         filtered: true,
     };
 }
@@ -1059,6 +1195,122 @@ if (savedPlz) {
     fetchWeather(savedPlz);
 }
 
+let energyFlowChart = null;
+let efSelectedDate = new Date().toISOString().slice(0, 10);
+
+function isToday(dateStr) {
+    return dateStr === new Date().toISOString().slice(0, 10);
+}
+
+function getEnergyForDay(daysAgo) {
+    let bezugStats = null, einspStats = null;
+    seriesConfigs.forEach(cfg => {
+        const s = allStats[cfg.ain]; if (!s) return;
+        if (cfg.label.toLowerCase().includes('einspe')) einspStats = s; else bezugStats = s;
+    });
+    const bD = bezugStats?.energy?.find(e => e.grid === 86400);
+    const eD = einspStats?.energy?.find(e => e.grid === 86400);
+    if (!bD?.values.length || !eD?.values.length) return null;
+    if (daysAgo >= bD.values.length || daysAgo >= eD.values.length) return null;
+    return { bezugKwh: bD.values[daysAgo] / 1000, einspKwh: eD.values[daysAgo] / 1000 };
+}
+
+function getDaysAgo(dateStr) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const sel = new Date(dateStr + 'T00:00:00'); sel.setHours(0,0,0,0);
+    return Math.round((today - sel) / 86400000);
+}
+
+async function fetchTsunDailyKwh(dateStr) {
+    if (isToday(dateStr) && tsunLive?.daily_kwh) return tsunLive.daily_kwh;
+    try {
+        const res = await fetch(`/api/tsun.php?action=history&date=${dateStr}`);
+        const data = await res.json();
+        if (!data.readings?.length) return 0;
+        let maxDaily = 0;
+        data.readings.forEach(r => {
+            const d = r.daily_generation || r.daily_energy || 0;
+            if (d > maxDaily) maxDaily = d;
+        });
+        return maxDaily;
+    } catch { return 0; }
+}
+
+async function renderEnergyFlow() {
+    const section = document.getElementById('energyFlowSection');
+    const barsEl = document.getElementById('energyFlowBars');
+    const dateInput = document.getElementById('efDate');
+    dateInput.value = efSelectedDate;
+
+    const daysAgo = getDaysAgo(efSelectedDate);
+    const energy = getEnergyForDay(daysAgo);
+    if (!energy) { section.style.display = 'none'; return; }
+
+    const solarKwh = await fetchTsunDailyKwh(efSelectedDate);
+
+    const { bezugKwh, einspKwh } = energy;
+
+    if (solarKwh <= 0 && einspKwh <= 0 && daysAgo > 0) { section.style.display = 'none'; return; }
+
+    section.style.display = '';
+
+    const eigenKwh = Math.max(0, solarKwh - einspKwh);
+    const gesamtVerbrauch = eigenKwh + bezugKwh;
+    const autarkie = gesamtVerbrauch > 0 ? (eigenKwh / gesamtVerbrauch) * 100 : 0;
+    const eigenquote = solarKwh > 0 ? (eigenKwh / solarKwh) * 100 : 0;
+
+    document.getElementById('efcAutarkie').textContent = `${fmt(autarkie, 0)}%`;
+    document.getElementById('efcAutarkie').style.color =
+        autarkie > 50 ? 'var(--green)' : autarkie > 25 ? 'var(--orange)' : 'var(--red)';
+
+    const maxVal = Math.max(bezugKwh, einspKwh, solarKwh, eigenKwh, 0.01);
+    const bar = (label, val, color, sub) => {
+        const pct = Math.max((val / maxVal) * 100, 2);
+        return `<div class="ef-row">
+            <div class="ef-label">${label}</div>
+            <div class="ef-bar-wrap"><div class="ef-bar" style="width:${pct}%;background:${color}">${sub || ''}</div></div>
+            <div class="ef-val" style="color:${color}">${fmt(val, 2)} kWh</div>
+        </div>`;
+    };
+
+    barsEl.innerHTML =
+        bar('Solar', solarKwh, '#f59e0b') +
+        bar('Eigenverbrauch', eigenKwh, '#22c55e', eigenquote > 0 ? `${fmt(eigenquote, 0)}%` : '') +
+        bar('Einspeisung', einspKwh, '#3b82f6') +
+        bar('Netzbezug', bezugKwh, '#ef4444');
+
+    const ctx = document.getElementById('energyFlowChart');
+    const data = {
+        labels: ['Eigenverbrauch', 'Einspeisung', 'Netzbezug'],
+        datasets: [{
+            data: [eigenKwh, einspKwh, bezugKwh],
+            backgroundColor: ['rgba(34,197,94,0.8)', 'rgba(59,130,246,0.7)', 'rgba(239,68,68,0.7)'],
+            borderColor: ['#22c55e', '#3b82f6', '#ef4444'],
+            borderWidth: 2,
+        }]
+    };
+    const opts = {
+        cutout: '65%',
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: c => `${c.label}: ${fmt(c.parsed, 2)} kWh`
+                }
+            }
+        }
+    };
+
+    if (energyFlowChart) {
+        energyFlowChart.data = data;
+        energyFlowChart.update();
+    } else {
+        energyFlowChart = new Chart(ctx, { type: 'doughnut', data, options: opts });
+    }
+}
+
 async function fetchData() {
     showLoading(true);
     try {
@@ -1088,7 +1340,17 @@ async function fetchData() {
             historyAvailableDays = histData.available_days || [];
         }
 
+        try {
+            const [tLive, tHist] = await Promise.all([
+                fetch('/api/tsun.php?action=live').then(r => r.json()),
+                fetch('/api/tsun.php?action=history').then(r => r.json()),
+            ]);
+            if (!tLive.error && tLive.ts) { tsunLive = tLive; updateSolar(tsunLive); }
+            if (!tHist.error) tsunHistory = tHist;
+        } catch (e) { /* TSUN optional */ }
+
         renderKPIs();
+        await renderEnergyFlow();
         if (!activeRange) updateRangeInputs();
         renderChart();
     } catch (e) { setStatus('Fehler: ' + e.message, true); }
@@ -1101,6 +1363,21 @@ setupBtnGroup('styleGroup',  v => { currentStyle = v;  renderChart(); });
 
 document.getElementById('batteryToggle').addEventListener('click', () => {
     document.getElementById('batterySection').classList.toggle('open');
+});
+
+document.getElementById('efDate').addEventListener('change', e => { efSelectedDate = e.target.value; renderEnergyFlow(); });
+document.getElementById('efPrev').addEventListener('click', () => {
+    const d = new Date(efSelectedDate + 'T00:00:00'); d.setDate(d.getDate() - 1);
+    efSelectedDate = d.toISOString().slice(0, 10); renderEnergyFlow();
+});
+document.getElementById('efNext').addEventListener('click', () => {
+    const d = new Date(efSelectedDate + 'T00:00:00'); d.setDate(d.getDate() + 1);
+    const today = new Date().toISOString().slice(0, 10);
+    efSelectedDate = d.toISOString().slice(0, 10) > today ? today : d.toISOString().slice(0, 10);
+    renderEnergyFlow();
+});
+document.getElementById('efToday').addEventListener('click', () => {
+    efSelectedDate = new Date().toISOString().slice(0, 10); renderEnergyFlow();
 });
 
 document.getElementById('rangeApply').addEventListener('click', applyRange);

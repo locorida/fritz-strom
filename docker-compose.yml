@@ -24,6 +24,16 @@ services:
       - "fritz.box:192.168.178.1"
     command: php /app/collect.php
 
+  tsun-collector:
+    image: php:8.4-cli
+    volumes:
+      - ./collector:/app
+      - ./data:/var/www/data
+    restart: unless-stopped
+    depends_on:
+      - mqtt-broker
+    command: php /app/collect_tsun.php
+
   tsun-proxy:
     image: ghcr.io/s-allius/tsun-gen3-proxy:latest
     ports:
@@ -43,13 +53,18 @@ services:
     image: eclipse-mosquitto:2
     ports:
       - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     restart: unless-stopped
 
-  dns:
-    image: jpillora/dnsmasq
-    ports:
-      - "53:53/udp"
-      - "53:53/tcp"
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    network_mode: host
     volumes:
-      - ./dns/dnsmasq.conf:/etc/dnsmasq.conf
+      - ./homeassistant/config:/config
+    environment:
+      - TZ=Europe/Berlin
     restart: unless-stopped
+
+
