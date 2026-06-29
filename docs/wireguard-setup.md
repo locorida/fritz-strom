@@ -36,10 +36,9 @@ VPN aktivieren und folgende Adressen im Browser aufrufen:
 
 | Service          | Adresse                        |
 |------------------|--------------------------------|
-| Dashboard        | `http://192.168.178.100:9090`  |
-| Home Assistant   | `http://192.168.178.100:8123`  |
-| Portainer        | `https://192.168.178.100:9443` |
-| TSUN Proxy       | `http://192.168.178.100:8127`  |
+| Dashboard        | `http://192.168.178.123:9090`  |
+| Home Assistant   | `http://192.168.178.123:8123`  |
+| TSUN Proxy       | `http://192.168.178.123:8127`  |
 | FRITZ!Box        | `http://192.168.178.1`         |
 
 ## 5. Automatische VPN-Verbindung (Handy)

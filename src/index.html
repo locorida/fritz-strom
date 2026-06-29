@@ -1115,12 +1115,15 @@ function renderWeather(w) {
         recoSub = 'Kaum Sonnenstrahlung erwartet — Verbrauch möglichst auf einen besseren Tag verschieben.';
     }
 
-    const firstHour = w.hourly[0]?.hour ?? 5;
-    const lastHour = w.hourly[w.hourly.length - 1]?.hour ?? 21;
+    const futureHourly = w.hourly.filter(h => h.hour >= nowHour);
+    const displayHourly = futureHourly.length > 1 ? futureHourly : w.hourly;
+
+    const firstHour = displayHourly[0]?.hour ?? 5;
+    const lastHour = displayHourly[displayHourly.length - 1]?.hour ?? 21;
     const totalHours = lastHour - firstHour + 1;
 
     let segHtml = '';
-    w.hourly.forEach(h => {
+    displayHourly.forEach(h => {
         const seg = bestHours.includes(h.hour) ? (h.radiation >= 300 ? 'seg-good' : 'seg-ok')
                   : h.radiation > 50 ? 'seg-low' : 'seg-none';
         const widthPct = (1 / totalHours) * 100;
@@ -1128,11 +1131,9 @@ function renderWeather(w) {
         segHtml += `<div class="solar-seg ${seg}" style="width:${widthPct}%" title="${h.time}: ${Math.round(h.radiation)} W/m² • ☁ ${h.cloud_cover}% • ${fmt(h.temperature, 0)}°C">${label}</div>`;
     });
 
-    const nowPct = nowHour >= firstHour && nowHour <= lastHour
-        ? ((nowHour - firstHour + new Date().getMinutes() / 60) / totalHours) * 100 : -1;
-    const nowMarker = nowPct >= 0 ? `<div class="solar-now-marker" style="left:${nowPct}%"></div>` : '';
+    const nowMarker = '';
 
-    const hourLabels = w.hourly.filter(h => h.hour % 3 === 0 || h.hour === firstHour || h.hour === lastHour)
+    const hourLabels = displayHourly.filter(h => h.hour % 3 === 0 || h.hour === firstHour || h.hour === lastHour)
         .map(h => `<span>${String(h.hour).padStart(2, '0')}</span>`).join('');
 
     document.getElementById('wxContent').innerHTML = `
@@ -1322,32 +1323,33 @@ async function fetchData() {
         if (cfgData.battery) battery = cfgData.battery;
         if (!seriesConfigs.length) { setStatus('Keine AINs konfiguriert.', true); showLoading(false); return; }
 
-        for (const cfg of seriesConfigs) {
-            const res = await fetch(`/api/fritz.php?action=stats&ain=${encodeURIComponent(cfg.ain)}`);
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            allStats[cfg.ain] = data;
-        }
+        const [statsResults, liveData, histData, tsunData] = await Promise.all([
+            Promise.all(seriesConfigs.map(cfg =>
+                fetch(`/api/fritz.php?action=stats&ain=${encodeURIComponent(cfg.ain)}`).then(r => r.json())
+            )),
+            fetch('/api/fritz.php?action=live').then(r => r.json()),
+            fetch('/api/fritz.php?action=history').then(r => r.json()),
+            Promise.all([
+                fetch('/api/tsun.php?action=live').then(r => r.json()).catch(() => null),
+                fetch('/api/tsun.php?action=history').then(r => r.json()).catch(() => null),
+            ]),
+        ]);
 
-        const liveRes = await fetch('/api/fritz.php?action=live');
-        const liveData = await liveRes.json();
+        seriesConfigs.forEach((cfg, i) => {
+            if (statsResults[i].error) throw new Error(statsResults[i].error);
+            allStats[cfg.ain] = statsResults[i];
+        });
+
         if (!liveData.error) updateSignal(liveData);
 
-        const histRes = await fetch('/api/fritz.php?action=history');
-        const histData = await histRes.json();
         if (!histData.error) {
             historyData = histData;
             historyAvailableDays = histData.available_days || [];
         }
 
-        try {
-            const [tLive, tHist] = await Promise.all([
-                fetch('/api/tsun.php?action=live').then(r => r.json()),
-                fetch('/api/tsun.php?action=history').then(r => r.json()),
-            ]);
-            if (!tLive.error && tLive.ts) { tsunLive = tLive; updateSolar(tsunLive); }
-            if (!tHist.error) tsunHistory = tHist;
-        } catch (e) { /* TSUN optional */ }
+        const [tLive, tHist] = tsunData;
+        if (tLive && !tLive.error && tLive.ts) { tsunLive = tLive; updateSolar(tsunLive); }
+        if (tHist && !tHist.error) tsunHistory = tHist;
 
         renderKPIs();
         await renderEnergyFlow();

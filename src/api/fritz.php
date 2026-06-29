@@ -68,10 +68,22 @@ function parse_ain_map(string $raw): array {
 
 $action = $_GET['action'] ?? '';
 
-$sid = fritz_login($host, $user, $password);
+function get_sid(string $host, string $user, string $password): string {
+    $cacheFile = '/tmp/fritz_sid.json';
+    if (file_exists($cacheFile)) {
+        $cached = json_decode(file_get_contents($cacheFile), true);
+        if ($cached && (time() - $cached['ts']) < 300) {
+            return $cached['sid'];
+        }
+    }
+    $sid = fritz_login($host, $user, $password);
+    file_put_contents($cacheFile, json_encode(['sid' => $sid, 'ts' => time()]));
+    return $sid;
+}
 
 switch ($action) {
     case 'devicelist':
+        $sid = get_sid($host, $user, $password);
         $xml = aha($host, $sid, 'getdevicelistinfos');
         $dom = simplexml_load_string($xml);
         $devices = [];
@@ -102,6 +114,7 @@ switch ($action) {
             http_response_code(400);
             die(json_encode(['error' => 'Parameter ain fehlt']));
         }
+        $sid = get_sid($host, $user, $password);
         $xml = aha($host, $sid, 'getbasicdevicestats', $ain);
         $dom = simplexml_load_string($xml);
 
@@ -138,6 +151,7 @@ switch ($action) {
         break;
 
     case 'live':
+        $sid = get_sid($host, $user, $password);
         $xml = aha($host, $sid, 'getdevicelistinfos');
         $dom = simplexml_load_string($xml);
         $meters = [];
